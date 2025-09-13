@@ -1,0 +1,18 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:jobportal_prod}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    show-sql: false
+
+jwt:
+  private-key: file:/app/keys/private-key.pem
+  public-key: file:/app/keys/public-key.pem
+
+app:
+  frontend-url: https://yourdomain.com
+  admin-login-url: /secure-admin-login
+
+security:
+  require-ssl: true
