@@ -1,0 +1,15 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://db.geqlzcvxpshycmfahdcw.supabase.co:5432/postgres
+    username: postgres
+    password: "@Ashishthapa46"   # Wrap in quotes if special chars exist
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+#    show-sql: true
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type: TRACE

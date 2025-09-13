@@ -1,0 +1,18 @@
+spring:
+  profiles:
+    active: dev
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+jwt:
+  secret: mySuperSecretKeyThatIsAtLeast256BitsLongForHS256Algorithm
+  expiration: 900000 # 15 minutes
+  refresh:
+    expiration: 2592000000 # 30 days
+
+logging:
+  level:
+    com.jobportal.backend: DEBUG
+    org.springframework.security: DEBUG
