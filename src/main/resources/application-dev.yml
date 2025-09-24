@@ -1,20 +1,23 @@
 spring:
   datasource:
-    url: jdbc:postgresql://db.geqlzcvxpshycmfahdcw.supabase.co:5432/postgres
-    username: postgres
-    password: "@Ashishthapa46"   # Wrap in quotes if special chars exist
-    driver-class-name: org.postgresql.Driver
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    database-platform: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.PostgreSQLDialect}
+server:
+  port: ${PORT:8080}
 
 #    show-sql: true
 
   mail:
-    host: smtp.gmail.com
-    port: 587
-    username: tryaac1ss@gmail.com
-    password: acxf frwi bjfo ibas
+    host: ${SPRING_MAIL_HOST}
+    port: ${SPRING_MAIL_PORT}
+    username: ${SPRING_MAIL_USERNAME}
+    password: ${SPRING_MAIL_PASSWORD}
     protocol: smtp
     properties:
       mail:
