@@ -1,18 +1,48 @@
 spring:
   profiles:
     active: dev
+  mail:
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+        from: tryaac1ss@gmail.com
+        personal: JobPortal Security
 
   flyway:
     enabled: true
     locations: classpath:db/migration
 
 jwt:
-  secret: mySuperSecretKeyThatIsAtLeast256BitsLongForHS256Algorithm
+  secret: 5ZoPtw1tCYBcri4AvOTvu8OcCgWo7iKU/HsJzMesr9M=
   expiration: 900000 # 15 minutes
   refresh:
     expiration: 2592000000 # 30 days
 
+
+password:
+  reset:
+    token:
+      expiration: 3600000 #1 hour
+
+server:
+  port: 8080
+
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+
 logging:
   level:
-    com.jobportal.backend: DEBUG
-    org.springframework.security: DEBUG
+    org.springframework.web: INFO
+
+#logging:
+#  level:
+#    com.jobportal.backend: DEBUG
+#    org.springframework.security: DEBUG

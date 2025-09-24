@@ -1,12 +1,10 @@
 package com.jobportal.backend.service.impl;
 
 import com.jobportal.backend.entity.RefreshToken;
-import com.jobportal.backend.entity.User;
-import com.jobportal.backend.exception.TokenRefreshException;
+import com.jobportal.backend.exception.TokenExpiredException;
 import com.jobportal.backend.repository.RefreshTokenRepository;
 import com.jobportal.backend.repository.UserRepository;
 import com.jobportal.backend.service.RefreshTokenService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,11 +18,13 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     @Value("${jwt.refresh.expiration}")
     private Long refreshTokenDurationMs;
 
-    @Autowired
-    private RefreshTokenRepository refreshTokenRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final UserRepository userRepository;
 
-    @Autowired
-    private UserRepository userRepository;
+    public RefreshTokenServiceImpl(RefreshTokenRepository refreshTokenRepository, UserRepository userRepository) {
+        this.refreshTokenRepository = refreshTokenRepository;
+        this.userRepository = userRepository;
+    }
 
     @Override
     public Optional<RefreshToken> findByToken(String token) {
@@ -34,9 +34,11 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     @Override
     public RefreshToken createRefreshToken(Long userId) {
         RefreshToken refreshToken = new RefreshToken();
+
         refreshToken.setUser(userRepository.findById(userId).get());
         refreshToken.setExpiryDate(Instant.now().plusMillis(refreshTokenDurationMs));
         refreshToken.setToken(UUID.randomUUID().toString());
+
         refreshToken = refreshTokenRepository.save(refreshToken);
         return refreshToken;
     }
@@ -45,15 +47,15 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     public RefreshToken verifyExpiration(RefreshToken token) {
         if (token.getExpiryDate().compareTo(Instant.now()) < 0) {
             refreshTokenRepository.delete(token);
-            throw new TokenRefreshException(token.getToken(), "Refresh token was expired. Please make a new signin request");
+            throw new TokenExpiredException("Refresh token was expired. Please make a new signin request");
         }
+
         return token;
     }
 
     @Override
     @Transactional
-    public void deleteByUserId(Long userId) {
-        User user = userRepository.findById(userId).get();
-        refreshTokenRepository.deleteByUser(user);
+    public int deleteByUserId(Long userId) {
+        return refreshTokenRepository.deleteByUser(userRepository.findById(userId).get());
     }
 }
