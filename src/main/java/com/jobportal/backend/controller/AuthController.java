@@ -1,58 +1,70 @@
 package com.jobportal.backend.controller;
 
-import com.jobportal.backend.dto.auth.request.LoginRequest;
-import com.jobportal.backend.dto.auth.request.RefreshTokenRequest;
-import com.jobportal.backend.dto.auth.request.RegisterRequest;
+import com.jobportal.backend.dto.ApiResponse;
+import com.jobportal.backend.dto.security.request.LoginRequest;
+import com.jobportal.backend.dto.security.request.SignupRequest;
+import com.jobportal.backend.dto.security.request.TokenRefreshRequest;
+import com.jobportal.backend.dto.security.response.LoginResponse;
+import com.jobportal.backend.dto.security.response.TokenRefreshResponse;
+import com.jobportal.backend.entity.RefreshToken;
+import com.jobportal.backend.exception.TokenNotFoundException;
+import com.jobportal.backend.security.JwtUtils;
+import com.jobportal.backend.security.UserPrincipal;
 import com.jobportal.backend.service.AuthService;
-import com.jobportal.backend.security.jwt.JwtUtil;
-import jakarta.servlet.http.HttpServletRequest;
+import com.jobportal.backend.service.RefreshTokenService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-import static com.jobportal.backend.config.ApiEndpointConstants.*;
-
+@CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
-@RequestMapping(AUTH_BASE)
+@RequestMapping("/api/auth")
 public class AuthController {
     private final AuthService authService;
-    private final JwtUtil jwtUtil;
+    private final RefreshTokenService refreshTokenService;
+    private final JwtUtils jwtUtils;
 
-    public AuthController(AuthService authService, JwtUtil jwtUtil) {
+    public AuthController(AuthService authService, RefreshTokenService refreshTokenService, JwtUtils jwtUtils) {
         this.authService = authService;
-        this.jwtUtil = jwtUtil;
+        this.refreshTokenService = refreshTokenService;
+        this.jwtUtils = jwtUtils;
     }
 
-    @PostMapping(REGISTER_CANDIDATE)
-    public ResponseEntity<?> registerCandidate(@Valid @RequestBody RegisterRequest request) {
-        return ResponseEntity.ok(authService.register(request, "CANDIDATE"));
+    @PostMapping("/signin")
+    public ResponseEntity<ApiResponse<LoginResponse>> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
+        LoginResponse response = authService.authenticateUser(loginRequest);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    @PostMapping(REGISTER_RECRUITER)
-    public ResponseEntity<?> registerRecruiter(@Valid @RequestBody RegisterRequest request) {
-        return ResponseEntity.ok(authService.register(request, "RECRUITER"));
+    @PostMapping("/signup")
+    public ResponseEntity<ApiResponse<?>> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
+        authService.registerUser(signUpRequest);
+        return ResponseEntity.ok(ApiResponse.success("User registered successfully!"));
     }
 
-    @PostMapping(LOGIN)
-    public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest request) {
-        return ResponseEntity.ok(authService.login(request));
+    @PostMapping("/refreshtoken")
+    public ResponseEntity<ApiResponse<TokenRefreshResponse>> refreshtoken(@Valid @RequestBody TokenRefreshRequest request) {
+        String requestRefreshToken = request.getRefreshToken();
+
+        TokenRefreshResponse response = refreshTokenService.findByToken(requestRefreshToken)
+                .map(refreshTokenService::verifyExpiration)
+                .map(RefreshToken::getUser)
+                .map(user -> {
+                    String token = jwtUtils.generateTokenFromEmail(user.getEmail());
+                    return new TokenRefreshResponse(token, requestRefreshToken);
+                })
+                .orElseThrow(() -> new TokenNotFoundException(
+                        "Refresh token is not in database!"));
+
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    @PostMapping(REFRESH)
-    public ResponseEntity<?> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
-        return ResponseEntity.ok(authService.refreshToken(request));
-    }
-
-    @PostMapping(LOGOUT)
-    public ResponseEntity<?> logoutUser(HttpServletRequest request) {
-        String token = jwtUtil.getTokenFromRequest(request);
-        authService.logout(token);
-        return ResponseEntity.ok().build();
-    }
-
-    @GetMapping(VERIFY_EMAIL)
-    public ResponseEntity<?> verifyEmail(@RequestParam String token) {
-        authService.verifyEmail(token);
-        return ResponseEntity.ok().build();
+    @PostMapping("/signout")
+    public ResponseEntity<ApiResponse<?>> logoutUser() {
+        UserPrincipal userPrincipal = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = userPrincipal.getId();
+        refreshTokenService.deleteByUserId(userId);
+        return ResponseEntity.ok(ApiResponse.success("Log out successful!"));
     }
 }
