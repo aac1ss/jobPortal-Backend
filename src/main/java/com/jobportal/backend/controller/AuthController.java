@@ -64,7 +64,7 @@ public class AuthController {
     public ResponseEntity<ApiResponse<?>> logoutUser() {
         UserPrincipal userPrincipal = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = userPrincipal.getId();
-        refreshTokenService.deleteByUserId(userId);
+        refreshTokenService.deleteByUserId(userId); // Now returns void
         return ResponseEntity.ok(ApiResponse.success("Log out successful!"));
     }
 }
