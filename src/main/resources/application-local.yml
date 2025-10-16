@@ -12,7 +12,7 @@ spring:
 server:
   port: ${PORT:8080}
 
-#    show-sql: true
+  #    show-sql: true
 
   mail:
     host: ${SPRING_MAIL_HOST}

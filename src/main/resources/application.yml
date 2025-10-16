@@ -30,13 +30,13 @@ password:
 server:
   port: 8080
 
-
 springdoc:
   api-docs:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
-
+    enabled: true
+  packages-to-scan: com.jobportal.backend.controller
 
 logging:
   level:

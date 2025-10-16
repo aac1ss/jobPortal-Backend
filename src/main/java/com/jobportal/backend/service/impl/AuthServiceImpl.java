@@ -13,7 +13,10 @@ import com.jobportal.backend.security.JwtUtils;
 import com.jobportal.backend.security.UserPrincipal;
 import com.jobportal.backend.service.AuthService;
 import com.jobportal.backend.service.RefreshTokenService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -27,6 +30,8 @@ import java.util.Set;
 
 @Service
 public class AuthServiceImpl implements AuthService {
+    private static final Logger logger = LoggerFactory.getLogger(AuthServiceImpl.class);
+
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
     private final PasswordEncoder encoder;
@@ -46,6 +51,9 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public LoginResponse authenticateUser(LoginRequest loginRequest) {
         try {
+            logger.info("Attempting authentication for email: {}", loginRequest.getEmail());
+
+            // Authenticate user
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword()));
 
@@ -60,15 +68,24 @@ public class AuthServiceImpl implements AuthService {
             user.recordLogin();
             userRepository.save(user);
 
+            // Create refresh token (this will handle existing tokens)
             RefreshToken refreshToken = refreshTokenService.createRefreshToken(userDetails.getId());
 
+            logger.info("User {} successfully authenticated", userDetails.getUsername());
+
             return new LoginResponse(jwt, refreshToken.getToken());
-        } catch (Exception e) {
+
+        } catch (BadCredentialsException e) {
+            logger.warn("Invalid credentials for email: {}", loginRequest.getEmail());
             throw new AuthenticationException("Invalid email or password");
+        } catch (Exception e) {
+            logger.error("Authentication failed for email: {}", loginRequest.getEmail(), e);
+            throw new AuthenticationException("Authentication failed: " + e.getMessage());
         }
     }
 
     @Override
+    @Transactional
     public void registerUser(SignupRequest signUpRequest) {
         if (userRepository.existsByUsername(signUpRequest.getUsername())) {
             throw new UserAlreadyExistsException("Username is already taken!");
@@ -89,5 +106,6 @@ public class AuthServiceImpl implements AuthService {
         user.setActive(true);
 
         userRepository.save(user);
+        logger.info("User registered successfully: {}", user.getUsername());
     }
 }

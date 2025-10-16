@@ -5,6 +5,8 @@ import com.jobportal.backend.exception.TokenExpiredException;
 import com.jobportal.backend.repository.RefreshTokenRepository;
 import com.jobportal.backend.repository.UserRepository;
 import com.jobportal.backend.service.RefreshTokenService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +17,8 @@ import java.util.UUID;
 
 @Service
 public class RefreshTokenServiceImpl implements RefreshTokenService {
+    private static final Logger logger = LoggerFactory.getLogger(RefreshTokenServiceImpl.class);
+
     @Value("${jwt.refresh.expiration}")
     private Long refreshTokenDurationMs;
 
@@ -32,30 +36,41 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     }
 
     @Override
+    @Transactional
     public RefreshToken createRefreshToken(Long userId) {
-        RefreshToken refreshToken = new RefreshToken();
+        try {
+            // First, delete any existing refresh token for this user
+            refreshTokenRepository.deleteByUserId(userId);
 
-        refreshToken.setUser(userRepository.findById(userId).get());
-        refreshToken.setExpiryDate(Instant.now().plusMillis(refreshTokenDurationMs));
-        refreshToken.setToken(UUID.randomUUID().toString());
+            // Then create new refresh token
+            RefreshToken refreshToken = new RefreshToken();
+            refreshToken.setUser(userRepository.findById(userId)
+                    .orElseThrow(() -> new RuntimeException("User not found with id: " + userId)));
+            refreshToken.setExpiryDate(Instant.now().plusMillis(refreshTokenDurationMs));
+            refreshToken.setToken(UUID.randomUUID().toString());
 
-        refreshToken = refreshTokenRepository.save(refreshToken);
-        return refreshToken;
+            RefreshToken savedToken = refreshTokenRepository.save(refreshToken);
+            logger.info("Created new refresh token for user ID: {}", userId);
+            return savedToken;
+        } catch (Exception e) {
+            logger.error("Error creating refresh token for user ID: {}", userId, e);
+            throw new RuntimeException("Failed to create refresh token", e);
+        }
     }
 
     @Override
     public RefreshToken verifyExpiration(RefreshToken token) {
         if (token.getExpiryDate().compareTo(Instant.now()) < 0) {
             refreshTokenRepository.delete(token);
-            throw new TokenExpiredException("Refresh token was expired. Please make a new signin request");
+            throw new TokenExpiredException( "Refresh token was expired. Please make a new signin request");
         }
-
         return token;
     }
 
     @Override
     @Transactional
-    public int deleteByUserId(Long userId) {
-        return refreshTokenRepository.deleteByUser(userRepository.findById(userId).get());
+    public void deleteByUserId(Long userId) { // Changed return type to void
+        refreshTokenRepository.deleteByUserId(userId);
+        logger.info("Deleted refresh token for user ID: {}", userId);
     }
 }
