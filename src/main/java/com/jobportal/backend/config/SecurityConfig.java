@@ -89,61 +89,38 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authorizeHttpRequests(auth -> auth
-                        // Public endpoints - Authentication
-                        .requestMatchers("/api/auth/signin").permitAll()
-                        .requestMatchers("/api/auth/signup").permitAll()
-                        .requestMatchers("/api/auth/refreshtoken").permitAll()
-                        .requestMatchers("/api/auth/password/forgot").permitAll()
-                        .requestMatchers("/api/auth/password/reset").permitAll()
-
-                        // Public endpoints - API Documentation
-                        .requestMatchers("/v3/api-docs/**").permitAll()
-                        .requestMatchers("/swagger-ui/**").permitAll()
-                        .requestMatchers("/swagger-ui.html").permitAll()
-                        .requestMatchers("/swagger-resources/**").permitAll()
-                        .requestMatchers("/webjars/**").permitAll()
-
-                        // Public endpoints - Actuator (Health checks)
-                        .requestMatchers("/actuator").permitAll()
-                        .requestMatchers("/actuator/**").permitAll()
-
-                        // Public endpoints - Root and error
-                        .requestMatchers("/").permitAll()
-                        .requestMatchers("/error").permitAll()
+                        // Public endpoints
+                        .requestMatchers(
+                                "/api/auth/signin",
+                                "/api/auth/signup",
+                                "/api/auth/refreshtoken",
+                                "/api/auth/password/forgot",
+                                "/api/auth/password/reset",
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/swagger-resources/**",
+                                "/webjars/**",
+                                "/actuator/**",
+                                "/",
+                                "/error"
+                        ).permitAll()
 
                         // Role-based endpoints
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/candidate/**").hasAnyRole("CANDIDATE", "ADMIN")
                         .requestMatchers("/api/recruiter/**").hasAnyRole("RECRUITER", "ADMIN")
 
-                        // Authenticated endpoints (no specific role required)
+                        // Authenticated endpoints
                         .requestMatchers("/api/auth/signout").authenticated()
 
-                        // All other requests require authentication
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
-                        .accessDeniedHandler((request, response, accessDeniedException) -> {
-                            response.setContentType("application/json");
-                            response.setStatus(403);
-                            response.getWriter().write(
-                                    "{\"success\": false, \"message\": \"Access denied: Insufficient permissions\", \"path\": \"" +
-                                            request.getRequestURI() + "\"}"
-                            );
-                        })
-                )
-                .headers(headers -> headers
-                        .httpStrictTransportSecurity(hsts -> hsts
-                                .includeSubDomains(true)
-                                .maxAgeInSeconds(31536000)
-                        )
-                        .frameOptions().deny()
-                        .contentSecurityPolicy(csp -> csp
-                                .policyDirectives("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'")
-                        )
                 );
 
+        // Add the filter - this is correct
         http.addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
