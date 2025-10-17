@@ -30,8 +30,10 @@ public class AuthTokenFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        String path = request.getServletPath();
-        if (isPublicEndpoint(path)) {
+
+        String requestURI = request.getRequestURI();
+
+        if (isPublicEndpoint(requestURI)) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -58,17 +60,18 @@ public class AuthTokenFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    private boolean isPublicEndpoint(String path) {
-        return path.startsWith("/api/auth/signin") ||
-                path.startsWith("/api/auth/signup") ||
-                path.startsWith("/api/auth/refreshtoken") ||
-                path.startsWith("/api/auth/password/forgot") ||
-                path.startsWith("/api/auth/password/reset") ||
-                path.startsWith("/v3/api-docs") ||
-                path.startsWith("/swagger-ui") ||
-                path.startsWith("/actuator") ||
-                path.equals("/") ||
-                path.equals("/error");
+    // ✅ ADD THIS METHOD: Check if endpoint is public
+    private boolean isPublicEndpoint(String requestURI) {
+        return requestURI.startsWith("/api/auth/signin") ||
+                requestURI.startsWith("/api/auth/signup") ||
+                requestURI.startsWith("/api/auth/refreshtoken") ||
+                requestURI.startsWith("/api/auth/password/forgot") ||
+                requestURI.startsWith("/api/auth/password/reset") ||
+                requestURI.startsWith("/v3/api-docs") ||
+                requestURI.startsWith("/swagger-ui") ||
+                requestURI.startsWith("/actuator") ||
+                requestURI.equals("/") ||
+                requestURI.equals("/error");
     }
 
     private String parseJwt(HttpServletRequest request) {
