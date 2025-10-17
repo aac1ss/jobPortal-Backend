@@ -29,6 +29,13 @@ public class AuthTokenFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
+
+        String path = request.getServletPath();
+        if (isPublicEndpoint(path)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         try {
             String jwt = parseJwt(request);
             if (jwt != null && jwtUtils.validateJwtToken(jwt)) {
@@ -49,6 +56,19 @@ public class AuthTokenFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean isPublicEndpoint(String path) {
+        return path.startsWith("/api/auth/signin") ||
+                path.startsWith("/api/auth/signup") ||
+                path.startsWith("/api/auth/refreshtoken") ||
+                path.startsWith("/api/auth/password/forgot") ||
+                path.startsWith("/api/auth/password/reset") ||
+                path.startsWith("/v3/api-docs") ||
+                path.startsWith("/swagger-ui") ||
+                path.startsWith("/actuator") ||
+                path.equals("/") ||
+                path.equals("/error");
     }
 
     private String parseJwt(HttpServletRequest request) {
