@@ -1,18 +1,28 @@
 package com.jobportal.backend.dto.security.response;
 
 import lombok.Data;
+import org.springframework.security.core.GrantedAuthority;
 
-import java.time.LocalDateTime;
+import java.util.Collection;
 
 @Data
 public class LoginResponse {
     private String accessToken;
     private String refreshToken;
-    private LocalDateTime timestamp;
+    private String tokenType = "Bearer";
+    private Long userId;
+    private String username;
+    private String email;
+    private Collection<? extends GrantedAuthority> roles;
+    private Long expiresIn;
 
-    public LoginResponse(String accessToken, String refreshToken) {
+    public LoginResponse(String accessToken, String refreshToken, Long userId,
+                         String username, String email, Collection<? extends GrantedAuthority> roles) {
         this.accessToken = accessToken;
         this.refreshToken = refreshToken;
-        this.timestamp = LocalDateTime.now();
+        this.userId = userId;
+        this.username = username;
+        this.email = email;
+        this.roles = roles;
     }
 }
