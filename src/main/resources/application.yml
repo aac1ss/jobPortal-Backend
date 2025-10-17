@@ -11,6 +11,17 @@ spring:
         from: tryaac1ss@gmail.com
         personal: JobPortal Security
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -47,3 +58,4 @@ logging:
   level:
     org.springframework.web: INFO
     com.jobportal.backend: INFO
+
