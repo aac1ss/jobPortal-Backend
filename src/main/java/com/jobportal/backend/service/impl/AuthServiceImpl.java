@@ -12,13 +12,11 @@ import com.jobportal.backend.security.JwtUtils;
 import com.jobportal.backend.security.UserPrincipal;
 import com.jobportal.backend.service.AuthService;
 import com.jobportal.backend.service.RefreshTokenService;
-import jakarta.validation.ValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -35,13 +33,12 @@ import java.util.regex.Pattern;
 public class AuthServiceImpl implements AuthService {
     private static final Logger logger = LoggerFactory.getLogger(AuthServiceImpl.class);
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@(.+)$");
-    private static final Pattern PASSWORD_PATTERN = Pattern.compile("^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=])(?=\\S+$).{8,}$");
-
     @Value("${app.security.max-login-attempts:5}")
     private int maxLoginAttempts;
 
     @Value("${app.security.account-lock-duration-minutes:30}")
-    private int accountLockDuration;
+    private int accountLockDurationMinutes;
+
 
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
@@ -65,10 +62,20 @@ public class AuthServiceImpl implements AuthService {
 
         logger.info("Authentication attempt for email: {}", email);
 
-        // Pre-validation
-        validateLoginInput(loginRequest);
+        // Basic validation
+        if (loginRequest.getEmail() == null || loginRequest.getEmail().trim().isEmpty()) {
+            throw new ValidationException("Email is required");
+        }
 
-        // Check if user exists and account status
+        if (loginRequest.getPassword() == null || loginRequest.getPassword().trim().isEmpty()) {
+            throw new ValidationException("Password is required");
+        }
+
+        if (!EMAIL_PATTERN.matcher(email).matches()) {
+            throw new ValidationException("Invalid email format");
+        }
+
+        // Check if user exists
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
                     logger.warn("Authentication failed: User not found - {}", email);
@@ -78,7 +85,7 @@ public class AuthServiceImpl implements AuthService {
         // Check account lock status
         if (user.isAccountLocked()) {
             logger.warn("Authentication failed: Account locked - {}", email);
-            throw new AccountLockedException("Account is temporarily locked due to multiple failed attempts. Please try again later.");
+            throw new AccountLockedException("Account is temporarily locked due to multiple failed attempts. Please try again in 30 minutes.");
         }
 
         try {
@@ -111,14 +118,11 @@ public class AuthServiceImpl implements AuthService {
 
         } catch (BadCredentialsException e) {
             // Record failed attempt
-            user.recordFailedLogin();
+            user.recordFailedLogin(maxLoginAttempts, accountLockDurationMinutes);
             userRepository.save(user);
 
             logger.warn("Invalid credentials for email: {}", email);
             throw new AuthenticationException("Invalid email or password");
-        } catch (LockedException e) {
-            logger.warn("Account locked for email: {}", email);
-            throw new AccountLockedException("Account is locked. Please contact administrator.");
         } catch (Exception e) {
             logger.error("Authentication failed for email: {}", email, e);
             throw new AuthenticationException("Authentication failed. Please try again.");
@@ -163,26 +167,16 @@ public class AuthServiceImpl implements AuthService {
 
             // Save user
             User savedUser = userRepository.save(user);
+
+            // Send welcome email (optional)
+            // emailService.sendWelcomeEmail(savedUser);
+
             logger.info("User registered successfully: {} with roles: {}",
                     savedUser.getUsername(), savedUser.getRoles());
 
         } catch (Exception e) {
             logger.error("Error during user registration for email: {}", email, e);
             throw new RuntimeException("Registration failed: " + e.getMessage());
-        }
-    }
-
-    private void validateLoginInput(LoginRequest loginRequest) {
-        if (loginRequest.getEmail() == null || loginRequest.getEmail().trim().isEmpty()) {
-            throw new ValidationException("Email is required");
-        }
-
-        if (loginRequest.getPassword() == null || loginRequest.getPassword().trim().isEmpty()) {
-            throw new ValidationException("Password is required");
-        }
-
-        if (!EMAIL_PATTERN.matcher(loginRequest.getEmail()).matches()) {
-            throw new ValidationException("Invalid email format");
         }
     }
 
@@ -203,20 +197,10 @@ public class AuthServiceImpl implements AuthService {
             throw new ValidationException("Password must be at least 8 characters long");
         }
 
-        if (signUpRequest.getPassword().length() > 100) {
-            throw new ValidationException("Password must not exceed 100 characters");
-        }
-
-        // Basic password strength validation
+        // Basic password strength
         String password = signUpRequest.getPassword();
-        if (!password.matches(".*[A-Z].*")) {
-            throw new ValidationException("Password must contain at least one uppercase letter");
-        }
-        if (!password.matches(".*[a-z].*")) {
-            throw new ValidationException("Password must contain at least one lowercase letter");
-        }
-        if (!password.matches(".*[0-9].*")) {
-            throw new ValidationException("Password must contain at least one digit");
+        if (!password.matches(".*[A-Z].*") || !password.matches(".*[a-z].*") || !password.matches(".*[0-9].*")) {
+            throw new ValidationException("Password must contain at least one uppercase letter, one lowercase letter, and one number");
         }
     }
 
@@ -227,20 +211,13 @@ public class AuthServiceImpl implements AuthService {
 
         Set<Role> validRoles = new HashSet<>();
         for (Role role : requestedRoles) {
-            if (role != null) {
+            if (role != null && isValidRole(role)) {
                 validRoles.add(role);
             }
         }
 
         if (validRoles.isEmpty()) {
             throw new ValidationException("Invalid roles provided");
-        }
-
-        // Ensure only valid roles from our enum are accepted
-        for (Role role : validRoles) {
-            if (!isValidRole(role)) {
-                throw new ValidationException("Invalid role: " + role);
-            }
         }
 
         return validRoles;

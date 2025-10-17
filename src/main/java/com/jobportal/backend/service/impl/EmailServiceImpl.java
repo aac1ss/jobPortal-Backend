@@ -74,17 +74,12 @@ public class EmailServiceImpl implements EmailService {
         }
     }
 
-    /**
-     * Format the token to look like a proper OTP (6-digit code)
-     */
     private String formatOTP(String token) {
-        // Take first 6 characters and format them with spaces for readability
-        if (token.length() >= 6) {
-            String otp = token.substring(0, 6).toUpperCase();
-            // Add spaces between characters for better readability
-            return String.join(" ", otp.split(""));
+        // Now token is already a 6-digit OTP, just format it with spaces
+        if (token.length() == 6) {
+            return String.join(" ", token.split(""));
         }
-        return token.toUpperCase();
+        return token;
     }
 
     /**

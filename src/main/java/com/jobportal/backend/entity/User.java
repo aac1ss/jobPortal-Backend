@@ -64,6 +64,7 @@ public class User {
     @Column(name = "account_locked_until")
     private LocalDateTime accountLockedUntil;
 
+
     @Version
     private Long version;
 
@@ -75,12 +76,12 @@ public class User {
         this.accountLockedUntil = null;
     }
 
-    public void recordFailedLogin() {
+    public void recordFailedLogin(int maxLoginAttempts, int lockDurationMinutes) {
         this.failedLoginAttempts = (this.failedLoginAttempts == null) ? 1 : this.failedLoginAttempts + 1;
 
-        // Lock account after 5 failed attempts for 30 minutes
-        if (this.failedLoginAttempts >= 5) {
-            this.accountLockedUntil = LocalDateTime.now().plusMinutes(30);
+        // Lock account after max attempts
+        if (this.failedLoginAttempts >= maxLoginAttempts) {
+            this.accountLockedUntil = LocalDateTime.now().plusMinutes(lockDurationMinutes);
         }
     }
 
