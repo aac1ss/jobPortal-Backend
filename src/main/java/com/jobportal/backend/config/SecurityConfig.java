@@ -103,7 +103,8 @@ public class SecurityConfig {
                                 "/webjars/**",
                                 "/actuator/**",
                                 "/",
-                                "/error"
+                                "/error",
+                                "/api/test"
                         ).permitAll()
 
                         // Role-based endpoints
