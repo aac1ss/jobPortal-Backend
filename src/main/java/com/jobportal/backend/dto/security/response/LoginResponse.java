@@ -1,28 +1,21 @@
 package com.jobportal.backend.dto.security.response;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
-import org.springframework.security.core.GrantedAuthority;
-
-import java.util.Collection;
+import lombok.NoArgsConstructor;
 
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class LoginResponse {
     private String accessToken;
     private String refreshToken;
     private String tokenType = "Bearer";
-    private Long userId;
-    private String username;
-    private String email;
-    private Collection<? extends GrantedAuthority> roles;
     private Long expiresIn;
 
-    public LoginResponse(String accessToken, String refreshToken, Long userId,
-                         String username, String email, Collection<? extends GrantedAuthority> roles) {
+    public LoginResponse(String accessToken, String refreshToken, Long expiresIn) {
         this.accessToken = accessToken;
         this.refreshToken = refreshToken;
-        this.userId = userId;
-        this.username = username;
-        this.email = email;
-        this.roles = roles;
+        this.expiresIn = expiresIn;
     }
 }

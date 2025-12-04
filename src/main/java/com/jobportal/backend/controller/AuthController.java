@@ -13,63 +13,85 @@ import com.jobportal.backend.security.UserPrincipal;
 import com.jobportal.backend.service.AuthService;
 import com.jobportal.backend.service.RefreshTokenService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-@CrossOrigin(origins = "*", maxAge = 3600)
+@Slf4j
 @RestController
+@RequiredArgsConstructor
+@CrossOrigin(origins = "*", maxAge = 3600)
 @RequestMapping("/api/auth")
-@Tag(name = "1. Authentication", description = "APIs for user authentication and authorization")
+@Tag(name = "Authentication", description = "Authentication APIs")
 public class AuthController {
+
     private final AuthService authService;
     private final RefreshTokenService refreshTokenService;
     private final JwtUtils jwtUtils;
 
-    public AuthController(AuthService authService, RefreshTokenService refreshTokenService, JwtUtils jwtUtils) {
-        this.authService = authService;
-        this.refreshTokenService = refreshTokenService;
-        this.jwtUtils = jwtUtils;
-    }
-
-    @Operation(summary = "User login", description = "Authenticate user with email and password to get JWT tokens")
+    @Operation(summary = "Candidate login", description = "Login for candidate users")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Login successful",
-                    content = @Content(schema = @Schema(implementation = GenericResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid input data"),
-            @ApiResponse(responseCode = "401", description = "Invalid credentials")
+            @ApiResponse(responseCode = "200", description = "Login successful"),
+            @ApiResponse(responseCode = "401", description = "Invalid credentials or user is not a candidate")
     })
-    @PostMapping("/signin")
-    public ResponseEntity<GenericResponse<LoginResponse>> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
-        LoginResponse response = authService.authenticateUser(loginRequest);
+    @PostMapping("/candidate/login")
+    public ResponseEntity<GenericResponse<LoginResponse>> candidateLogin(
+            @Valid @RequestBody LoginRequest loginRequest) {
+        LoginResponse response = authService.authenticateCandidate(loginRequest);
         return ResponseEntity.ok(GenericResponse.success(response));
     }
 
-    @Operation(summary = "User registration", description = "Register a new user account with specified roles")
+    @Operation(summary = "Recruiter login", description = "Login for recruiter users")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Registration successful"),
-            @ApiResponse(responseCode = "400", description = "Username or email already exists")
+            @ApiResponse(responseCode = "200", description = "Login successful"),
+            @ApiResponse(responseCode = "401", description = "Invalid credentials or user is not a recruiter")
     })
-    @PostMapping("/signup")
-    public ResponseEntity<GenericResponse<?>> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
-        authService.registerUser(signUpRequest);
-        return ResponseEntity.ok(GenericResponse.success("User registered successfully!"));
+    @PostMapping("/recruiter/login")
+    public ResponseEntity<GenericResponse<LoginResponse>> recruiterLogin(
+            @Valid @RequestBody LoginRequest loginRequest) {
+        LoginResponse response = authService.authenticateRecruiter(loginRequest);
+        return ResponseEntity.ok(GenericResponse.success(response));
     }
 
-    @Operation(summary = "Refresh access token", description = "Get new access token using valid refresh token")
+    @Operation(summary = "Admin login", description = "Login for admin users")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Token refreshed successfully"),
-            @ApiResponse(responseCode = "404", description = "Refresh token not found"),
-            @ApiResponse(responseCode = "403", description = "Refresh token expired")
+            @ApiResponse(responseCode = "200", description = "Login successful"),
+            @ApiResponse(responseCode = "401", description = "Invalid credentials or user is not an admin")
     })
-    @PostMapping("/refreshtoken")
-    public ResponseEntity<GenericResponse<TokenRefreshResponse>> refreshtoken(@Valid @RequestBody TokenRefreshRequest request) {
+    @PostMapping("/admin/login")
+    public ResponseEntity<GenericResponse<LoginResponse>> adminLogin(
+            @Valid @RequestBody LoginRequest loginRequest) {
+        LoginResponse response = authService.authenticateAdmin(loginRequest);
+        return ResponseEntity.ok(GenericResponse.success(response));
+    }
+
+    @Operation(summary = "User registration", description = "Register a new user")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Registration successful"),
+            @ApiResponse(responseCode = "400", description = "Invalid input or user exists")
+    })
+    @PostMapping("/signup")
+    public ResponseEntity<GenericResponse<?>> registerUser(
+            @Valid @RequestBody SignupRequest signUpRequest) {
+        authService.registerUser(signUpRequest);
+        return ResponseEntity.ok(GenericResponse.success("User registered successfully"));
+    }
+
+    @Operation(summary = "Refresh token", description = "Refresh access token using refresh token")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Token refreshed"),
+            @ApiResponse(responseCode = "403", description = "Invalid refresh token")
+    })
+    @PostMapping("/refresh-token")
+    public ResponseEntity<GenericResponse<TokenRefreshResponse>> refreshToken(
+            @Valid @RequestBody TokenRefreshRequest request) {
+
         String requestRefreshToken = request.getRefreshToken();
 
         TokenRefreshResponse response = refreshTokenService.findByToken(requestRefreshToken)
@@ -79,13 +101,12 @@ public class AuthController {
                     String token = jwtUtils.generateTokenFromEmail(user.getEmail());
                     return new TokenRefreshResponse(token, requestRefreshToken);
                 })
-                .orElseThrow(() -> new TokenNotFoundException(
-                        "Refresh token is not in database!"));
+                .orElseThrow(() -> new TokenNotFoundException("Invalid refresh token"));
 
         return ResponseEntity.ok(GenericResponse.success(response));
     }
 
-    @Operation(summary = "User logout", description = "Logout user and invalidate refresh token")
+    @Operation(summary = "Logout", description = "Logout user and invalidate refresh token")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Logout successful"),
             @ApiResponse(responseCode = "401", description = "Unauthorized")
@@ -93,8 +114,7 @@ public class AuthController {
     @PostMapping("/signout")
     public ResponseEntity<GenericResponse<?>> logoutUser() {
         UserPrincipal userPrincipal = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        Long userId = userPrincipal.getId();
-        refreshTokenService.deleteByUserId(userId);
-        return ResponseEntity.ok(GenericResponse.success("Log out successful!"));
+        refreshTokenService.deleteByUserId(userPrincipal.getId());
+        return ResponseEntity.ok(GenericResponse.success("Logout successful"));
     }
 }

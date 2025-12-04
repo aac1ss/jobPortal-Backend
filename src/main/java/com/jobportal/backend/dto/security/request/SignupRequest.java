@@ -1,7 +1,7 @@
 package com.jobportal.backend.dto.security.request;
 
 
-import com.jobportal.backend.enums.Role;
+import com.jobportal.backend.enums.RoleEnum;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -27,5 +27,5 @@ public class SignupRequest {
     private String password;
 
     @NotNull
-    private Set<Role> roles;
+    private Set<RoleEnum> roleEnums;
 }

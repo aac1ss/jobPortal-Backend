@@ -15,6 +15,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Boolean existsByUsername(String username);
     Boolean existsByEmail(String email);
 
-    @Query("SELECT u FROM User u WHERE u.email = :email AND u.deletedAt IS NULL AND u.isActive = true")
-    Optional<User> findActiveByEmail(@Param("email") String email);
+    @Query("SELECT u FROM User u LEFT JOIN FETCH u.roleEnums WHERE u.email = :email AND u.deletedAt IS NULL AND u.isActive = true")
+    Optional<User> findActiveByEmailWithRoles(@Param("email") String email);
 }

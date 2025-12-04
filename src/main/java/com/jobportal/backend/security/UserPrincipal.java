@@ -21,7 +21,7 @@ public class UserPrincipal implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return user.getRoles().stream()
+        return user.getRoleEnums().stream()
                 .map(role -> new SimpleGrantedAuthority(role.name()))
                 .collect(Collectors.toList());
     }
@@ -51,7 +51,7 @@ public class UserPrincipal implements UserDetails {
 
     @Override
     public boolean isAccountNonLocked() {
-        return user.isActive();
+        return user.isActive() && !user.isAccountLocked();
     }
 
     @Override

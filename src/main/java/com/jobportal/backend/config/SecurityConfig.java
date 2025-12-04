@@ -3,11 +3,12 @@ package com.jobportal.backend.config;
 import com.jobportal.backend.security.AuthTokenFilter;
 import com.jobportal.backend.security.JwtAuthenticationEntryPoint;
 import com.jobportal.backend.service.impl.UserDetailsServiceImpl;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -27,19 +28,12 @@ import java.util.List;
         securedEnabled = true,
         jsr250Enabled = true
 )
+@RequiredArgsConstructor
 public class SecurityConfig {
 
     private final UserDetailsServiceImpl userDetailsService;
     private final AuthTokenFilter authTokenFilter;
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
-
-    public SecurityConfig(UserDetailsServiceImpl userDetailsService,
-                          AuthTokenFilter authTokenFilter,
-                          JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint) {
-        this.userDetailsService = userDetailsService;
-        this.authTokenFilter = authTokenFilter;
-        this.jwtAuthenticationEntryPoint = jwtAuthenticationEntryPoint;
-    }
 
     @Bean
     public DaoAuthenticationProvider daoAuthenticationProvider() {
@@ -51,8 +45,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    public AuthenticationManager authenticationManager() {
-        return new ProviderManager(daoAuthenticationProvider());
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
+        return authConfig.getAuthenticationManager();
     }
 
     @Bean
@@ -66,8 +60,7 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(List.of(
                 "http://localhost:3000",
                 "http://localhost:8080",
-                "https://neptalent.up.railway.app",
-                "https://your-frontend-domain.com" // Add your frontend domain here
+                "https://neptalent.up.railway.app"
         ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Cache-Control", "X-Requested-With"));
@@ -89,39 +82,61 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authorizeHttpRequests(auth -> auth
-                        // Public endpoints
+                        // ✅ Swagger/OpenAPI documentation endpoints
                         .requestMatchers(
-                                "/api/auth/signin",
-                                "/api/auth/signup",
-                                "/api/auth/refreshtoken",
-                                "/api/auth/password/forgot",
-                                "/api/auth/password/reset",
-                                "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
+                                "/v3/api-docs/**",
                                 "/swagger-resources/**",
+                                "/swagger-resources",
                                 "/webjars/**",
+                                "/api-docs/**",
+                                "/api-docs",
+                                "/configuration/ui",
+                                "/configuration/security"
+                        ).permitAll()
+
+                        // ✅ Authentication endpoints
+                        .requestMatchers(
+                                "/api/auth/candidate/login",
+                                "/api/auth/recruiter/login",
+                                "/api/auth/admin/login",
+                                "/api/auth/signup",
+                                "/api/auth/refresh-token",
+                                "/api/auth/password/forgot",
+                                "/api/auth/password/reset",
+                                "/api/auth/signin",          // backward compatibility
+                                "/api/auth/refreshtoken"     // backward compatibility
+                        ).permitAll()
+
+                        // ✅ Actuator endpoints
+                        .requestMatchers(
                                 "/actuator/**",
+                                "/actuator/health",
+                                "/actuator/info"
+                        ).permitAll()
+
+                        // ✅ Static resources and error pages
+                        .requestMatchers(
                                 "/",
                                 "/error",
+                                "/favicon.ico",
                                 "/api/test"
                         ).permitAll()
 
-                        // Role-based endpoints
+                        // ✅ Role-based endpoints
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/candidate/**").hasAnyRole("CANDIDATE", "ADMIN")
                         .requestMatchers("/api/recruiter/**").hasAnyRole("RECRUITER", "ADMIN")
 
-                        // Authenticated endpoints
-                        .requestMatchers("/api/auth/signout").authenticated()
-
+                        // All other requests require authentication
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                 );
 
-        // Add the filter - this is correct
+        // Add JWT filter
         http.addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

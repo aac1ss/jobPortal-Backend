@@ -5,8 +5,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -15,24 +15,38 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 
+@Slf4j
+@RequiredArgsConstructor
 public class AuthTokenFilter extends OncePerRequestFilter {
+
     private final JwtUtils jwtUtils;
     private final UserDetailsServiceImpl userDetailsService;
-    private static final Logger logger = LoggerFactory.getLogger(AuthTokenFilter.class);
 
-    public AuthTokenFilter(JwtUtils jwtUtils, UserDetailsServiceImpl userDetailsService) {
-        this.jwtUtils = jwtUtils;
-        this.userDetailsService = userDetailsService;
-    }
+    private static final List<String> PUBLIC_ENDPOINTS = Arrays.asList(
+            // Swagger endpoints
+            "/swagger-ui/", "/swagger-ui.html", "/v3/api-docs/", "/swagger-resources/", "/webjars/", "/api-docs/",
+            // Auth endpoints
+            "/api/auth/candidate/login", "/api/auth/recruiter/login", "/api/auth/admin/login",
+            "/api/auth/signup", "/api/auth/refresh-token", "/api/auth/refreshtoken",
+            "/api/auth/signin", "/api/auth/password/",
+            // Actuator
+            "/actuator/",
+            // Others
+            "/", "/error", "/api/test", "/favicon.ico"
+    );
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    FilterChain filterChain)
             throws ServletException, IOException {
-
 
         String requestURI = request.getRequestURI();
 
+        // Skip JWT validation for public endpoints
         if (isPublicEndpoint(requestURI)) {
             filterChain.doFilter(request, response);
             return;
@@ -40,6 +54,7 @@ public class AuthTokenFilter extends OncePerRequestFilter {
 
         try {
             String jwt = parseJwt(request);
+
             if (jwt != null && jwtUtils.validateJwtToken(jwt)) {
                 String email = jwtUtils.getEmailFromJwtToken(jwt);
 
@@ -51,27 +66,17 @@ public class AuthTokenFilter extends OncePerRequestFilter {
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
-                logger.debug("Authenticated user: {}", email);
+                log.debug("Authenticated user: {}", email);
             }
         } catch (Exception e) {
-            logger.error("Cannot set user authentication: {}", e.getMessage());
+            log.error("Cannot set user authentication: {}", e.getMessage());
         }
 
         filterChain.doFilter(request, response);
     }
 
-    // ✅ ADD THIS METHOD: Check if endpoint is public
     private boolean isPublicEndpoint(String requestURI) {
-        return requestURI.startsWith("/api/auth/signin") ||
-                requestURI.startsWith("/api/auth/signup") ||
-                requestURI.startsWith("/api/auth/refreshtoken") ||
-                requestURI.startsWith("/api/auth/password/forgot") ||
-                requestURI.startsWith("/api/auth/password/reset") ||
-                requestURI.startsWith("/v3/api-docs") ||
-                requestURI.startsWith("/swagger-ui") ||
-                requestURI.startsWith("/actuator") ||
-                requestURI.equals("/") ||
-                requestURI.equals("/error");
+        return PUBLIC_ENDPOINTS.stream().anyMatch(requestURI::startsWith);
     }
 
     private String parseJwt(HttpServletRequest request) {
