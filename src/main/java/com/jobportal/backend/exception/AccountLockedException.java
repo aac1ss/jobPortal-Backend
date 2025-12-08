@@ -1,7 +1,9 @@
 package com.jobportal.backend.exception;
 
-public class AccountLockedException extends RuntimeException {
+import org.springframework.http.HttpStatus;
+
+public class AccountLockedException extends BaseException {
     public AccountLockedException(String message) {
-        super(message);
+        super(message, HttpStatus.LOCKED);
     }
 }
