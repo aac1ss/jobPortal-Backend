@@ -2,16 +2,22 @@ package com.jobportal.backend.service.impl;
 
 import com.jobportal.backend.dto.security.request.LoginRequest;
 import com.jobportal.backend.dto.security.request.SignupRequest;
+import com.jobportal.backend.dto.security.request.VerifySignupRequest;
 import com.jobportal.backend.dto.security.response.LoginResponse;
 import com.jobportal.backend.entity.RefreshToken;
 import com.jobportal.backend.entity.User;
 import com.jobportal.backend.enums.RoleEnum;
-import com.jobportal.backend.exception.*;
+import com.jobportal.backend.exception.AccountLockedException;
+import com.jobportal.backend.exception.AuthenticationException;
+import com.jobportal.backend.exception.UserAlreadyExistsException;
+import com.jobportal.backend.exception.ValidationException;
 import com.jobportal.backend.repository.UserRepository;
 import com.jobportal.backend.security.JwtUtils;
 import com.jobportal.backend.security.UserPrincipal;
 import com.jobportal.backend.service.AuthService;
+import com.jobportal.backend.service.EmailVerificationService;
 import com.jobportal.backend.service.RefreshTokenService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,6 +29,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -50,6 +58,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder encoder;
     private final JwtUtils jwtUtils;
     private final RefreshTokenService refreshTokenService;
+    private final EmailVerificationService emailVerificationService;
 
     @Override
     @Transactional
@@ -79,6 +88,10 @@ public class AuthServiceImpl implements AuthService {
                     log.warn("User not found: {}", email);
                     return new AuthenticationException("Invalid credentials");
                 });
+        if (!user.isEmailVerified()) {
+            log.warn("Login attempt with unverified email: {}", email);
+            throw new AuthenticationException("Please verify your email before logging in");
+        }
 
         if (user.isAccountLocked()) {
             log.warn("Account locked: {}", email);
@@ -143,32 +156,96 @@ public class AuthServiceImpl implements AuthService {
             throw new UserAlreadyExistsException("Email already in use");
         }
 
-        User user = new User();
-        user.setUsername(username);
-        user.setEmail(email);
-        user.setPassword(encoder.encode(signUpRequest.getPassword()));
-        user.setPasswordUpdatedAt(LocalDateTime.now());
+        // Hash password
+        String passwordHash = encoder.encode(signUpRequest.getPassword());
 
-        Set<RoleEnum> roles = validateAndGetRoles(signUpRequest.getRoleEnums());
-        user.setRoleEnums(roles);
-        user.setActive(true);
+        // Convert roles to JSON string
+        String rolesJson = convertRolesToJson(signUpRequest.getRoleEnums());
 
-        userRepository.save(user);
-        log.info("User registered: {} as {}", username, roles);
+        // Get HTTP request for IP tracking
+        HttpServletRequest request = getCurrentHttpRequest();
+
+        // Send verification OTP (does NOT save user yet)
+        emailVerificationService.sendVerificationOtp(email, username, passwordHash, rolesJson, request);
+
+        log.info("Signup initiated for user: {}. Verification OTP sent.", email);
     }
 
-    private void validateLoginInput(LoginRequest loginRequest) {
-        if (loginRequest.getEmail() == null || loginRequest.getEmail().trim().isEmpty()) {
-            throw new ValidationException("Email is required");
-        }
+    @Override
+    @Transactional
+    public User verifyAndCompleteSignup(VerifySignupRequest verifyRequest) {
+        HttpServletRequest request = getCurrentHttpRequest();
 
-        if (loginRequest.getPassword() == null || loginRequest.getPassword().trim().isEmpty()) {
-            throw new ValidationException("Password is required");
-        }
+        EmailVerificationService.PendingRegistration pending =
+                emailVerificationService.verifyOtp(verifyRequest, request);
 
-        if (!EMAIL_PATTERN.matcher(loginRequest.getEmail().toLowerCase().trim()).matches()) {
-            throw new ValidationException("Invalid email format");
+        User user = createUserFromPendingRegistration(pending);
+        User savedUser = userRepository.save(user);
+
+        log.info("User registration completed: {} - {}", savedUser.getEmail(), savedUser.getUsername());
+
+        return savedUser;
+    }
+
+    @Transactional
+    public void resendVerificationOtp(String email) {
+        // Get HTTP request for IP tracking
+        HttpServletRequest request = getCurrentHttpRequest();
+
+        emailVerificationService.resendVerificationOtp(email, request);
+
+        log.info("Verification OTP resent for: {}", email);
+    }
+
+    private User createUserFromPendingRegistration(EmailVerificationService.PendingRegistration pending) {
+        User user = new User();
+        user.setUsername(pending.getUsername());
+        user.setEmail(pending.getEmail());
+        user.setPassword(pending.getPasswordHash());
+        user.setPasswordUpdatedAt(LocalDateTime.now());
+
+        // Parse roles from JSON
+        Set<RoleEnum> roles = parseRolesFromJson(pending.getRoles());
+        user.setRoleEnums(roles);
+
+        user.setActive(true);
+        user.setEmailVerified(true);
+        user.setEmailVerifiedAt(LocalDateTime.now());
+
+        return user;
+    }
+
+    private String convertRolesToJson(Set<RoleEnum> roles) {
+        Set<RoleEnum> validRoles = validateAndGetRoles(roles);
+        // Simple comma-separated string for roles
+        return String.join(",", validRoles.stream().map(Enum::name).toArray(String[]::new));
+    }
+
+    private Set<RoleEnum> parseRolesFromJson(String rolesJson) {
+        Set<RoleEnum> roles = new HashSet<>();
+        if (rolesJson != null && !rolesJson.isEmpty()) {
+            for (String roleName : rolesJson.split(",")) {
+                try {
+                    roles.add(RoleEnum.valueOf(roleName.trim()));
+                } catch (IllegalArgumentException e) {
+                    log.warn("Invalid role in pending registration: {}", roleName);
+                }
+            }
         }
+        // Default to CANDIDATE if no roles
+        if (roles.isEmpty()) {
+            roles.add(RoleEnum.CANDIDATE);
+        }
+        return roles;
+    }
+
+    private HttpServletRequest getCurrentHttpRequest() {
+        ServletRequestAttributes attributes = (ServletRequestAttributes)
+                RequestContextHolder.getRequestAttributes();
+        if (attributes != null) {
+            return attributes.getRequest();
+        }
+        throw new IllegalStateException("No HTTP request available");
     }
 
     private void validateRegistrationInput(SignupRequest signUpRequest) {
@@ -199,6 +276,21 @@ public class AuthServiceImpl implements AuthService {
         String password = signUpRequest.getPassword();
         if (!password.matches(".*[A-Z].*") || !password.matches(".*[a-z].*") || !password.matches(".*[0-9].*")) {
             throw new ValidationException("Password must contain uppercase, lowercase and number");
+        }
+    }
+
+
+    private void validateLoginInput(LoginRequest loginRequest) {
+        if (loginRequest.getEmail() == null || loginRequest.getEmail().trim().isEmpty()) {
+            throw new ValidationException("Email is required");
+        }
+
+        if (loginRequest.getPassword() == null || loginRequest.getPassword().trim().isEmpty()) {
+            throw new ValidationException("Password is required");
+        }
+
+        if (!EMAIL_PATTERN.matcher(loginRequest.getEmail().toLowerCase().trim()).matches()) {
+            throw new ValidationException("Invalid email format");
         }
     }
 

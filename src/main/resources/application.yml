@@ -36,10 +36,16 @@ app:
     max-login-attempts: 5
     account-lock-duration-minutes: 30
     password-reset:
-      token-expiration-ms: 3600000
+      token-expiration-ms: 300000 #in milliseconds
       otp-length: 6
       max-attempts: 3
-
+    email-verification:
+      otp-length: 6
+      otp-expiration-minutes: 5
+      max-attempts: 3
+      resend-cooldown-seconds: 120
+      max-daily-attempts: 10
+      cleanup-age-days: 7
 
 management:
   endpoints:

@@ -29,8 +29,11 @@ public class EmailServiceImpl implements EmailService {
     @Value("${app.support.email:support@jobportal.com}")
     private String supportEmail;
 
-    @Value("${spring.mail.username}") // Get email from application.yml
+    @Value("${spring.mail.username}")
     private String fromEmail;
+
+    @Value("${app.security.email-verification.otp-expiration-minutes:15}")
+    private int otpExpirationMinutes;
 
     public EmailServiceImpl(JavaMailSender mailSender, TemplateEngine templateEngine) {
         this.mailSender = mailSender;
@@ -45,9 +48,8 @@ public class EmailServiceImpl implements EmailService {
 
             helper.setTo(user.getEmail());
             helper.setSubject("🔐 Password Reset Request - JobPortal");
-            helper.setFrom(fromEmail, "JobPortal Security"); // Use configured email
+            helper.setFrom(fromEmail, "JobPortal Security");
 
-            // Create Thymeleaf context with all required variables
             Context context = new Context();
             context.setVariable("name", user.getUsername());
             context.setVariable("token", formatOTP(token));
@@ -74,17 +76,7 @@ public class EmailServiceImpl implements EmailService {
         }
     }
 
-    private String formatOTP(String token) {
-        // Now token is already a 6-digit OTP, just format it with spaces
-        if (token.length() == 6) {
-            return String.join(" ", token.split(""));
-        }
-        return token;
-    }
-
-    /**
-     * Send welcome email after registration
-     */
+    @Override
     public void sendWelcomeEmail(User user) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
@@ -108,8 +100,52 @@ public class EmailServiceImpl implements EmailService {
             logger.info("Welcome email sent successfully to: {}", user.getEmail());
 
         } catch (Exception e) {
-            // Log error but don't throw - welcome email failure shouldn't block registration
             logger.error("Failed to send welcome email to: {}", user.getEmail(), e);
         }
+    }
+
+    @Override
+    public void sendVerificationEmail(String email, String name, String otp) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setTo(email);
+            helper.setSubject("✅ Verify Your Email - NepTalent");
+            helper.setFrom(fromEmail, "NepTalent Security");
+
+            Context context = new Context();
+            context.setVariable("name", name);
+            context.setVariable("email", email);
+            context.setVariable("otp", formatOTP(otp));
+            context.setVariable("expirationMinutes", otpExpirationMinutes);
+            context.setVariable("currentYear", LocalDateTime.now().getYear());
+            context.setVariable("supportEmail", supportEmail);
+            context.setVariable("requestTime", LocalDateTime.now().format(
+                    DateTimeFormatter.ofPattern("MMMM dd, yyyy 'at' hh:mm a")));
+            context.setVariable("verificationLink", frontendUrl + "/verify-email?email=" +
+                    java.net.URLEncoder.encode(email, "UTF-8") + "&otp=" + otp);
+
+            String htmlContent = templateEngine.process("verification-email", context);
+
+            helper.setText(htmlContent, true);
+            mailSender.send(message);
+
+            logger.info("Verification email sent successfully to: {} with OTP: {}", email, otp);
+
+        } catch (MessagingException e) {
+            logger.error("Failed to send verification email to: {}", email, e);
+            throw new RuntimeException("Failed to send verification email", e);
+        } catch (Exception e) {
+            logger.error("Error processing verification email template for: {}", email, e);
+            throw new RuntimeException("Error processing verification email template", e);
+        }
+    }
+
+    private String formatOTP(String token) {
+        if (token != null && token.length() == 6) {
+            return String.join(" ", token.split(""));
+        }
+        return token;
     }
 }

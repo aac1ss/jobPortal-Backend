@@ -103,6 +103,8 @@ public class SecurityConfig {
                                 "/api/auth/recruiter/login",
                                 "/api/auth/admin/login",
                                 "/api/auth/signup",
+                                "/api/auth/verify-signup",
+                                "/api/auth/resend-verification",
                                 "/api/auth/refresh-token",
                                 "/api/auth/password/forgot",
                                 "/api/auth/password/reset",

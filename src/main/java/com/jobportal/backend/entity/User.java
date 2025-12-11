@@ -64,8 +64,21 @@ public class User {
     @Column(name = "account_locked_until")
     private LocalDateTime accountLockedUntil;
 
+    @Column(name = "email_verified")
+    private boolean emailVerified = false;
+
+    @Column(name = "email_verified_at")
+    private LocalDateTime emailVerifiedAt;
+
     @Version
     private Long version;
+
+    // Add this method:
+    public void verifyEmail() {
+        this.emailVerified = true;
+        this.emailVerifiedAt = LocalDateTime.now();
+        this.isActive = true;
+    }
 
     public void recordLogin() {
         this.lastLoginTime = LocalDateTime.now();
