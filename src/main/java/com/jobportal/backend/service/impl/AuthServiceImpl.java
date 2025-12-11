@@ -197,6 +197,19 @@ public class AuthServiceImpl implements AuthService {
         log.info("Verification OTP resent for: {}", email);
     }
 
+    @Override
+    @Transactional
+    public void logout(String refreshToken) {
+        if (refreshToken == null || refreshToken.trim().isEmpty()) {
+            throw new ValidationException("Refresh token is required");
+        }
+
+        // Delete the refresh token
+        refreshTokenService.deleteByToken(refreshToken);
+
+        log.info("User logged out successfully. Refresh token invalidated.");
+    }
+
     private User createUserFromPendingRegistration(EmailVerificationService.PendingRegistration pending) {
         User user = new User();
         user.setUsername(pending.getUsername());

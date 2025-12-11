@@ -30,7 +30,8 @@ public class AuthTokenFilter extends OncePerRequestFilter {
             "/swagger-ui/", "/swagger-ui.html", "/v3/api-docs/", "/swagger-resources/", "/webjars/", "/api-docs/",
             // Auth endpoints
             "/api/auth/candidate/login", "/api/auth/recruiter/login", "/api/auth/admin/login",
-            "/api/auth/signup", "/api/auth/refresh-token", "/api/auth/refreshtoken",
+            "/api/auth/signup", "/api/auth/verify-signup", "/api/auth/resend-verification",
+            "/api/auth/refresh-token", "/api/auth/signout", "/api/auth/refreshtoken",
             "/api/auth/signin", "/api/auth/password/",
             // Actuator
             "/actuator/",
@@ -67,6 +68,8 @@ public class AuthTokenFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
                 log.debug("Authenticated user: {}", email);
+            } else {
+                log.debug("No valid JWT token found for request: {}", requestURI);
             }
         } catch (Exception e) {
             log.error("Cannot set user authentication: {}", e.getMessage());

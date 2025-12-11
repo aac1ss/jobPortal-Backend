@@ -106,6 +106,7 @@ public class SecurityConfig {
                                 "/api/auth/verify-signup",
                                 "/api/auth/resend-verification",
                                 "/api/auth/refresh-token",
+                                "/api/auth/signout",
                                 "/api/auth/password/forgot",
                                 "/api/auth/password/reset",
                                 "/api/auth/signin",          // backward compatibility

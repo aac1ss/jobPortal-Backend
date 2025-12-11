@@ -13,4 +13,5 @@ public interface AuthService {
     void registerUser(SignupRequest signUpRequest);
     User verifyAndCompleteSignup(VerifySignupRequest verifyRequest);
     void resendVerificationOtp(String email);
+    void logout(String refreshToken);
 }

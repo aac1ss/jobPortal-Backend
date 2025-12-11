@@ -156,15 +156,16 @@ public class AuthController {
         return ResponseEntity.ok(GenericResponse.success(response));
     }
 
-    @Operation(summary = "Logout", description = "Logout user and invalidate refresh token")
+    @Operation(summary = "Logout", description = "Logout user by invalidating refresh token")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Logout successful"),
-            @ApiResponse(responseCode = "401", description = "Unauthorized")
+            @ApiResponse(responseCode = "400", description = "Invalid refresh token")
     })
     @PostMapping("/signout")
-    public ResponseEntity<GenericResponse<?>> logoutUser() {
-        UserPrincipal userPrincipal = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        refreshTokenService.deleteByUserId(userPrincipal.getId());
+    public ResponseEntity<GenericResponse<?>> logoutUser(
+            @RequestParam("refreshToken") String refreshToken) {
+
+        authService.logout(refreshToken);
         return ResponseEntity.ok(GenericResponse.success("Logout successful"));
     }
 }
