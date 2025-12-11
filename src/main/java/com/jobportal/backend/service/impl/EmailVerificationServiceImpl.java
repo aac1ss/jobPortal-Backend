@@ -56,49 +56,54 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
             throw new ValidationException("Invalid email format");
         }
 
-        email = email.toLowerCase().trim();
+        final String normalizedEmail = email.toLowerCase().trim();
 
         // Check if user already exists
-        if (userRepository.existsByEmail(email)) {
+        if (userRepository.existsByEmail(normalizedEmail)) {
             throw new UserAlreadyExistsException("Email already registered");
         }
 
-        // Check if already has pending registration
-        verificationTokenRepository.findByEmailAndUsedFalse(email).ifPresent(token -> {
-            if (!token.isExpired()) {
-                throw new UserAlreadyExistsException("Verification already pending for this email");
-            }
-        });
+        // Check resend cooldown for existing token
+        checkResendCooldown(normalizedEmail);
 
-        // Check resend cooldown
-        checkResendCooldown(email);
-
-        // Delete any existing tokens for this email
-        verificationTokenRepository.deleteByEmail(email);
-
-        // Generate OTP
+        // Generate new OTP
         String otp = generateSecureOTP();
 
         // Prepare user data as JSON
         String userDataJson = createUserDataJson(username, passwordHash, roles);
 
-        // Create verification token
-        EmailVerificationToken verificationToken = new EmailVerificationToken();
-        verificationToken.setOtp(otp);
-        verificationToken.setEmail(email);
-        verificationToken.setUserData(userDataJson);
-        verificationToken.setExpiryDate(LocalDateTime.now().plusMinutes(otpExpirationMinutes));
-        verificationToken.setUsed(false);
-        verificationToken.setAttempts(0);
-        verificationToken.setIpAddress(getClientIP(request));
-        verificationToken.setUserAgent(request.getHeader("User-Agent"));
+        // Check if token already exists for this email
+        EmailVerificationToken verificationToken = verificationTokenRepository
+                .findByEmailAndUsedFalse(normalizedEmail)
+                .orElse(null);
+
+        if (verificationToken != null) {
+            // Update existing token
+            verificationToken.setOtp(otp);
+            verificationToken.setUserData(userDataJson);
+            verificationToken.setExpiryDate(LocalDateTime.now().plusMinutes(otpExpirationMinutes));
+            verificationToken.setAttempts(0);
+            verificationToken.setIpAddress(getClientIP(request));
+            verificationToken.setUserAgent(request.getHeader("User-Agent"));
+        } else {
+            // Create new token
+            verificationToken = new EmailVerificationToken();
+            verificationToken.setOtp(otp);
+            verificationToken.setEmail(normalizedEmail);
+            verificationToken.setUserData(userDataJson);
+            verificationToken.setExpiryDate(LocalDateTime.now().plusMinutes(otpExpirationMinutes));
+            verificationToken.setUsed(false);
+            verificationToken.setAttempts(0);
+            verificationToken.setIpAddress(getClientIP(request));
+            verificationToken.setUserAgent(request.getHeader("User-Agent"));
+        }
 
         verificationTokenRepository.save(verificationToken);
 
         // Send verification email
-        emailService.sendVerificationEmail(email, username, otp);
+        emailService.sendVerificationEmail(normalizedEmail, username, otp);
 
-        log.info("Verification OTP sent for user: {} with OTP: {}", email, otp);
+        log.info("Verification OTP sent for user: {} with OTP: {}", normalizedEmail, otp);
     }
 
     @Override
@@ -106,24 +111,27 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
     public PendingRegistration verifyOtp(VerifySignupRequest verifyRequest, HttpServletRequest request) {
         validateVerificationRequest(verifyRequest);
 
-        String email = verifyRequest.getEmail().toLowerCase().trim();
-        String otp = verifyRequest.getOtp();
+        final String normalizedEmail = verifyRequest.getEmail().toLowerCase().trim();
+        final String otp = verifyRequest.getOtp();
 
         // Check if user already exists
-        if (userRepository.existsByEmail(email)) {
+        if (userRepository.existsByEmail(normalizedEmail)) {
             throw new UserAlreadyExistsException("User already registered");
         }
 
-        // Find verification token
-        EmailVerificationToken verificationToken = verificationTokenRepository.findByOtp(otp)
+        // Find verification token by email (since we're doing 1 row per user)
+        EmailVerificationToken verificationToken = verificationTokenRepository
+                .findByEmailAndUsedFalse(normalizedEmail)
                 .orElseThrow(() -> {
-                    log.warn("Invalid verification OTP: {}", otp);
-                    return new TokenNotFoundException("Invalid verification code");
+                    log.warn("No verification token found for email: {}", normalizedEmail);
+                    return new TokenNotFoundException("No pending verification found");
                 });
 
-        // Verify email matches
-        if (!verificationToken.getEmail().equals(email)) {
-            throw new AuthenticationException("Email does not match verification");
+        // Verify OTP matches
+        if (!verificationToken.getOtp().equals(otp)) {
+            verificationToken.setAttempts(verificationToken.getAttempts() + 1);
+            verificationTokenRepository.save(verificationToken);
+            throw new AuthenticationException("Invalid verification code");
         }
 
         // Check if already used
@@ -141,13 +149,6 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
             throw new AccountLockedException("Too many verification attempts");
         }
 
-        // Verify OTP
-        if (!verificationToken.getOtp().equals(otp)) {
-            verificationToken.setAttempts(verificationToken.getAttempts() + 1);
-            verificationTokenRepository.save(verificationToken);
-            throw new AuthenticationException("Invalid verification code");
-        }
-
         // Mark token as used
         verificationToken.setUsed(true);
         verificationToken.setUsedAt(LocalDateTime.now());
@@ -161,7 +162,7 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
             );
 
             return new PendingRegistration(
-                    email,
+                    normalizedEmail,
                     userData.get("username"),
                     userData.get("passwordHash"),
                     userData.get("roles")
@@ -180,23 +181,24 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
             throw new ValidationException("Invalid email format");
         }
 
-        email = email.toLowerCase().trim();
+        final String normalizedEmail = email.toLowerCase().trim();
 
         // Check if user already exists
-        if (userRepository.existsByEmail(email)) {
+        if (userRepository.existsByEmail(normalizedEmail)) {
             throw new UserAlreadyExistsException("User already registered");
         }
 
         // Find existing token
         EmailVerificationToken existingToken = verificationTokenRepository
-                .findByEmailAndUsedFalse(email)
+                .findByEmailAndUsedFalse(normalizedEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("No pending registration found"));
 
         // Check if token is still valid
         if (!existingToken.isExpired()) {
             // Check cooldown period
-            LocalDateTime nextAllowedTime = existingToken.getCreatedAt()
-                    .plusSeconds(resendCooldownSeconds);
+            LocalDateTime nextAllowedTime = existingToken.getUpdatedAt() != null ?
+                    existingToken.getUpdatedAt().plusSeconds(resendCooldownSeconds) :
+                    existingToken.getCreatedAt().plusSeconds(resendCooldownSeconds);
 
             if (LocalDateTime.now().isBefore(nextAllowedTime)) {
                 long secondsRemaining = java.time.Duration.between(
@@ -228,14 +230,14 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
             String username = userData.get("username");
 
             // Send new verification email
-            emailService.sendVerificationEmail(email, username, newOtp);
+            emailService.sendVerificationEmail(normalizedEmail, username, newOtp);
 
         } catch (JsonProcessingException e) {
             log.error("Failed to parse user data for resend: {}", existingToken.getId(), e);
             throw new RuntimeException("Failed to process verification data");
         }
 
-        log.info("Verification OTP resent for: {}", email);
+        log.info("Verification OTP resent for: {}", normalizedEmail);
     }
 
     @Override
@@ -244,6 +246,22 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
         LocalDateTime cutoff = LocalDateTime.now();
         int deleted = verificationTokenRepository.deleteExpiredTokens(cutoff);
         log.info("Cleaned up {} expired verification tokens", deleted);
+    }
+
+    private void checkResendCooldown(String email) {
+        verificationTokenRepository.findByEmailAndUsedFalse(email).ifPresent(token -> {
+            LocalDateTime lastUpdateTime = token.getUpdatedAt() != null ?
+                    token.getUpdatedAt() : token.getCreatedAt();
+            LocalDateTime nextAllowedTime = lastUpdateTime.plusSeconds(resendCooldownSeconds);
+
+            if (LocalDateTime.now().isBefore(nextAllowedTime)) {
+                long secondsRemaining = java.time.Duration.between(
+                        LocalDateTime.now(), nextAllowedTime).getSeconds();
+                throw new ValidationException(
+                        String.format("Please wait %d seconds before requesting new verification code", secondsRemaining)
+                );
+            }
+        });
     }
 
     private String createUserDataJson(String username, String passwordHash, String roles) {
@@ -271,16 +289,6 @@ public class EmailVerificationServiceImpl implements EmailVerificationService {
 
     private boolean isValidEmail(String email) {
         return email != null && EMAIL_PATTERN.matcher(email).matches();
-    }
-
-    private void checkResendCooldown(String email) {
-        LocalDateTime twoMinutesAgo = LocalDateTime.now().minusSeconds(resendCooldownSeconds);
-
-        if (verificationTokenRepository.existsByEmailAndCreatedAtAfter(email, twoMinutesAgo)) {
-            throw new ValidationException(
-                    String.format("Please wait %d seconds before requesting new verification code", resendCooldownSeconds)
-            );
-        }
     }
 
     private String generateSecureOTP() {
