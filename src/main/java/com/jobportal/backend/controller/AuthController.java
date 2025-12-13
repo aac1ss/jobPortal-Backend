@@ -88,7 +88,7 @@ public class AuthController {
 
         SignupResponse response = SignupResponse.builder()
                 .email(signUpRequest.getEmail())
-                .username(signUpRequest.getUsername())
+                .fullName(signUpRequest.getFullName()) // Changed from username
                 .message("Verification code sent to your email. Please check your inbox.")
                 .build();
 
@@ -109,7 +109,7 @@ public class AuthController {
         User user = authService.verifyAndCompleteSignup(verifyRequest);
 
         return ResponseEntity.ok(GenericResponse.success(
-                String.format("Registration completed successfully! Welcome %s", user.getUsername())
+                String.format("Registration completed successfully! Welcome %s", user.getFullName())
         ));
     }
 

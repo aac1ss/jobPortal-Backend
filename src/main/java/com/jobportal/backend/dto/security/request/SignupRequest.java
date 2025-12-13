@@ -13,9 +13,9 @@ import java.util.Set;
 
 @Data
 public class SignupRequest {
-    @NotBlank(message = "Username is required")
-    @Size(min = 3, max = 20, message = "Username must be between 3 and 20 characters")
-    private String username;
+    @NotBlank(message = "Full name is required")
+    @Size(min = 2, max = 100, message = "Full name must be between 2 and 100 characters")
+    private String fullName;
 
     @NotBlank(message = "Email is required")
     @Email(message = "Please provide a valid email address")

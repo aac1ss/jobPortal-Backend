@@ -16,14 +16,14 @@ public interface EmailVerificationService {
 
     class PendingRegistration {
         private final String email;
-        private final String username;
+        private final String fullName;
         private final String passwordHash;
         private final String roles;
 
-        public PendingRegistration(String email, String username,
+        public PendingRegistration(String email, String fullName,
                                    String passwordHash, String roles) {
             this.email = email;
-            this.username = username;
+            this.fullName = fullName;
             this.passwordHash = passwordHash;
             this.roles = roles;
         }
@@ -32,8 +32,8 @@ public interface EmailVerificationService {
             return email;
         }
 
-        public String getUsername() {
-            return username;
+        public String getFullName() {
+            return fullName;
         }
 
         public String getPasswordHash() {

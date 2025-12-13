@@ -146,11 +146,7 @@ public class AuthServiceImpl implements AuthService {
         validateRegistrationInput(signUpRequest);
 
         String email = signUpRequest.getEmail().toLowerCase().trim();
-        String username = signUpRequest.getUsername().trim();
-
-        if (userRepository.existsByUsername(username)) {
-            throw new UserAlreadyExistsException("Username already taken");
-        }
+        String fullName = signUpRequest.getFullName().trim();
 
         if (userRepository.existsByEmail(email)) {
             throw new UserAlreadyExistsException("Email already in use");
@@ -166,7 +162,7 @@ public class AuthServiceImpl implements AuthService {
         HttpServletRequest request = getCurrentHttpRequest();
 
         // Send verification OTP (does NOT save user yet)
-        emailVerificationService.sendVerificationOtp(email, username, passwordHash, rolesJson, request);
+        emailVerificationService.sendVerificationOtp(email, fullName, passwordHash, rolesJson, request);
 
         log.info("Signup initiated for user: {}. Verification OTP sent.", email);
     }
@@ -182,7 +178,7 @@ public class AuthServiceImpl implements AuthService {
         User user = createUserFromPendingRegistration(pending);
         User savedUser = userRepository.save(user);
 
-        log.info("User registration completed: {} - {}", savedUser.getEmail(), savedUser.getUsername());
+        log.info("User registration completed: {} - {}", savedUser.getEmail(), savedUser.getFullName());
 
         return savedUser;
     }
@@ -212,7 +208,7 @@ public class AuthServiceImpl implements AuthService {
 
     private User createUserFromPendingRegistration(EmailVerificationService.PendingRegistration pending) {
         User user = new User();
-        user.setUsername(pending.getUsername());
+        user.setFullName(pending.getFullName());
         user.setEmail(pending.getEmail());
         user.setPassword(pending.getPasswordHash());
         user.setPasswordUpdatedAt(LocalDateTime.now());
@@ -262,14 +258,38 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private void validateRegistrationInput(SignupRequest signUpRequest) {
-        if (signUpRequest.getUsername() == null || signUpRequest.getUsername().trim().length() < 3) {
-            throw new ValidationException("Username must be at least 3 characters");
+        // Full name validation - at least 2 words
+        String fullName = signUpRequest.getFullName();
+        if (fullName == null || fullName.trim().isEmpty()) {
+            throw new ValidationException("Full name is required");
         }
 
-        if (signUpRequest.getUsername().length() > 20) {
-            throw new ValidationException("Username must not exceed 20 characters");
+        fullName = fullName.trim();
+
+        // Check for minimum 2 characters
+        if (fullName.length() < 2) {
+            throw new ValidationException("Full name must be at least 2 characters");
         }
 
+        // Check for maximum 100 characters
+        if (fullName.length() > 100) {
+            throw new ValidationException("Full name must not exceed 100 characters");
+        }
+
+        // Check for at least 2 words (separated by space)
+        String[] nameParts = fullName.split("\\s+");
+        if (nameParts.length < 2) {
+            throw new ValidationException("Full name must contain at least 2 words (e.g., 'John Smith')");
+        }
+
+        // Check each name part for minimum length
+        for (String part : nameParts) {
+            if (part.length() < 1) {
+                throw new ValidationException("Each name part must have at least 1 character");
+            }
+        }
+
+        // Email validation
         if (signUpRequest.getEmail() == null || !EMAIL_PATTERN.matcher(signUpRequest.getEmail()).matches()) {
             throw new ValidationException("Valid email required");
         }
@@ -278,6 +298,7 @@ public class AuthServiceImpl implements AuthService {
             throw new ValidationException("Email must not exceed 50 characters");
         }
 
+        // Password validation
         if (signUpRequest.getPassword() == null || signUpRequest.getPassword().length() < 6) {
             throw new ValidationException("Password must be at least 6 characters");
         }

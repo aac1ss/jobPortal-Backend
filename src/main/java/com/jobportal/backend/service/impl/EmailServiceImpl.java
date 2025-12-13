@@ -51,7 +51,7 @@ public class EmailServiceImpl implements EmailService {
             helper.setFrom(fromEmail, "JobPortal Security");
 
             Context context = new Context();
-            context.setVariable("name", user.getUsername());
+            context.setVariable("name", user.getFullName());
             context.setVariable("token", formatOTP(token));
             context.setVariable("expirationHours", 1);
             context.setVariable("resetLink", frontendUrl + "/reset-password?token=" + token);
@@ -87,7 +87,7 @@ public class EmailServiceImpl implements EmailService {
             helper.setFrom(fromEmail, "NepTalent Team");
 
             Context context = new Context();
-            context.setVariable("name", user.getUsername());
+            context.setVariable("name", user.getFullName());
             context.setVariable("currentYear", LocalDateTime.now().getYear());
             context.setVariable("supportEmail", supportEmail);
             context.setVariable("loginLink", frontendUrl + "/login");
