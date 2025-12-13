@@ -1,99 +1,70 @@
 package com.jobportal.backend.security;
 
 import com.jobportal.backend.entity.User;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
-import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class UserPrincipal implements UserDetails {
-    private Long id;
+    private final User user;
 
-    private String email;
-
-    @JsonIgnore
-    private String password;
-
-    private Collection<? extends GrantedAuthority> authorities;
-
-    public UserPrincipal(Long id, String email, String password, Collection<? extends GrantedAuthority> authorities) {
-        this.id = id;
-        this.email = email;
-        this.password = password;
-        this.authorities = authorities;
+    public UserPrincipal(User user) {
+        this.user = user;
     }
 
-    public static UserPrincipal create(User user) {
-        List<GrantedAuthority> authorities = user.getRoles().stream().map(role ->
-                new SimpleGrantedAuthority(role.getName().name())
-        ).collect(Collectors.toList());
-
-        return new UserPrincipal(
-                user.getId(),
-                user.getEmail(),
-                user.getPassword(),
-                authorities
-        );
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    @Override
-    public String getUsername() {
-        return email;
-    }
-
-    @Override
-    public String getPassword() {
-        return password;
+    public static UserPrincipal build(User user) {
+        return new UserPrincipal(user);
     }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return authorities;
+        return user.getRoleEnums().stream()
+                .map(role -> new SimpleGrantedAuthority(role.name()))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public String getPassword() {
+        return user.getPassword();
+    }
+
+    @Override
+    public String getUsername() {
+        return user.getEmail();
+    }
+
+    public String getFullName() {
+        return user.getFullName(); // Add this getter for full name access
+    }
+
+    public String getEmail() {
+        return user.getEmail();
+    }
+
+    public Long getId() {
+        return user.getId();
     }
 
     @Override
     public boolean isAccountNonExpired() {
-        return true;
+        return user.isActive();
     }
 
     @Override
     public boolean isAccountNonLocked() {
-        return true;
+        return user.isActive() && !user.isAccountLocked();
     }
 
     @Override
     public boolean isCredentialsNonExpired() {
-        return true;
+        return user.isActive();
     }
 
     @Override
     public boolean isEnabled() {
-        return true;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        UserPrincipal that = (UserPrincipal) o;
-        return Objects.equals(id, that.id);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(id);
+        return user.isActive();
     }
 }

@@ -2,6 +2,8 @@ package com.jobportal.backend.repository;
 
 import com.jobportal.backend.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -10,4 +12,7 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmail(String email);
     Boolean existsByEmail(String email);
+
+    @Query("SELECT u FROM User u LEFT JOIN FETCH u.roleEnums WHERE u.email = :email AND u.deletedAt IS NULL AND u.isActive = true")
+    Optional<User> findActiveByEmailWithRoles(@Param("email") String email);
 }
