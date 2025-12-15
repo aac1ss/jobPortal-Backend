@@ -1,0 +1,24 @@
+package com.jobportal.backend.enums;
+
+public enum IndustryEnum {
+    IT_SOFTWARE,
+    HEALTHCARE,
+    EDUCATION,
+    MANUFACTURING,
+    RETAIL,
+    CONSTRUCTION,
+    HOSPITALITY,
+    MEDIA_ENTERTAINMENT,
+    TELECOMMUNICATIONS,
+    TRANSPORTATION,
+    ENERGY,
+    REAL_ESTATE,
+    CONSULTING,
+    NON_PROFIT,
+    FINTECH,
+    GOVERNMENT,
+    E_COMMERCE,
+    MARKETING_ADVERTISING,
+    DESIGN,
+    OTHER
+}

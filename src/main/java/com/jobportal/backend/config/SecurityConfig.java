@@ -113,6 +113,11 @@ public class SecurityConfig {
                                 "/api/auth/refreshtoken"     // backward compatibility
                         ).permitAll()
 
+                        // Company Profile Endpoints
+                        .requestMatchers("/api/recruiter/profile/**").hasAnyRole("RECRUITER", "ADMIN")
+                        .requestMatchers("/api/admin/companies/**").hasRole("ADMIN")
+                        .requestMatchers("/api/companies/**").permitAll()  // Public access
+
                         // ✅ Actuator endpoints
                         .requestMatchers(
                                 "/actuator/**",
