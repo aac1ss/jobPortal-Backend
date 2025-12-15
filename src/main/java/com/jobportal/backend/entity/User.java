@@ -73,6 +73,18 @@ public class User {
     @Version
     private Long version;
 
+    // Add this relationship
+    @OneToOne(mappedBy = "recruiter", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private CompanyProfile companyProfile;
+
+    public boolean hasCompanyProfile() {
+        return this.companyProfile != null;
+    }
+
+    public boolean hasCompleteCompanyProfile() {
+        return this.companyProfile != null && this.companyProfile.isProfileComplete();
+    }
+
     public void verifyEmail() {
         this.emailVerified = true;
         this.emailVerifiedAt = LocalDateTime.now();
