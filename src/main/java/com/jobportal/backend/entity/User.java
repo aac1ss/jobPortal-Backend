@@ -20,7 +20,7 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "full_name", nullable = false, length = 100) // Changed from username
+    @Column(name = "full_name", nullable = false, length = 100)
     private String fullName;
 
     @Column(unique = true, nullable = false, length = 100)
@@ -113,19 +113,6 @@ public class User {
     public void unlockAccount() {
         this.failedLoginAttempts = 0;
         this.accountLockedUntil = null;
-    }
-
-    public void addRole(RoleEnum role) {
-        if (roleEnums == null) {
-            roleEnums = new HashSet<>();
-        }
-        roleEnums.add(role);
-    }
-
-    public void removeRole(RoleEnum role) {
-        if (roleEnums != null) {
-            roleEnums.remove(role);
-        }
     }
 
     public boolean hasRole(RoleEnum role) {

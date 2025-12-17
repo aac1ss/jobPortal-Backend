@@ -1,5 +1,6 @@
 package com.jobportal.backend.service.impl;
 
+import com.jobportal.backend.dto.security.request.ChangePasswordRequest;
 import com.jobportal.backend.dto.security.request.LoginRequest;
 import com.jobportal.backend.dto.security.request.SignupRequest;
 import com.jobportal.backend.dto.security.request.VerifySignupRequest;
@@ -204,6 +205,124 @@ public class AuthServiceImpl implements AuthService {
         refreshTokenService.deleteByToken(refreshToken);
 
         log.info("User logged out successfully. Refresh token invalidated.");
+    }
+
+    @Override
+    @Transactional
+    public void changePassword(ChangePasswordRequest request, String authenticatedEmail) {
+        validateChangePasswordRequest(request);
+
+        String email = authenticatedEmail.toLowerCase().trim();
+
+        // Find user by email
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> {
+                    log.warn("User not found for password change: {}", email);
+                    return new AuthenticationException("User not found");
+                });
+
+        // Check if user is active
+        if (!user.isActive()) {
+            throw new AuthenticationException("User account is not active");
+        }
+
+        // Check if email is verified
+        if (!user.isEmailVerified()) {
+            throw new AuthenticationException("Please verify your email before changing password");
+        }
+
+        // Verify current password
+        if (!encoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            // Record failed attempt (similar to login)
+            user.recordFailedLogin(maxLoginAttempts, accountLockDurationMinutes);
+            userRepository.save(user);
+
+            log.warn("Invalid current password for user: {}", email);
+            throw new AuthenticationException("Current password is incorrect");
+        }
+
+        // Check if new password is same as old password
+        if (encoder.matches(request.getNewPassword(), user.getPassword())) {
+            throw new ValidationException("New password cannot be same as current password");
+        }
+
+        // Check if password was recently changed (optional - security feature)
+        LocalDateTime passwordUpdatedAt = user.getPasswordUpdatedAt();
+        if (passwordUpdatedAt != null) {
+            LocalDateTime minAllowedTime = LocalDateTime.now().minusMinutes(30); // 30-minute cooldown
+            if (passwordUpdatedAt.isAfter(minAllowedTime)) {
+                throw new ValidationException("You can only change your password once every 30 minutes");
+            }
+        }
+
+        // Hash and save new password
+        String newPasswordHash = encoder.encode(request.getNewPassword());
+        user.setPassword(newPasswordHash);
+        user.setPasswordUpdatedAt(LocalDateTime.now());
+        user.setFailedLoginAttempts(0);
+        user.setAccountLockedUntil(null);
+
+        // Invalidate all refresh tokens for this user (force logout from all devices)
+        refreshTokenService.deleteByUserId(user.getId());
+
+        userRepository.save(user);
+
+        log.info("Password changed successfully for user: {}", email);
+    }
+
+    private void validateChangePasswordRequest(ChangePasswordRequest request) {
+        if (request.getCurrentPassword() == null || request.getCurrentPassword().trim().isEmpty()) {
+            throw new ValidationException("Current password is required");
+        }
+
+        if (request.getCurrentPassword().length() > 40) {
+            throw new ValidationException("Current password is too long");
+        }
+
+        // Validate new password
+        String newPassword = request.getNewPassword();
+        if (newPassword == null || newPassword.trim().isEmpty()) {
+            throw new ValidationException("New password is required");
+        }
+
+        if (newPassword.length() < 6) {
+            throw new ValidationException("New password must be at least 6 characters");
+        }
+
+        if (newPassword.length() > 40) {
+            throw new ValidationException("New password must not exceed 40 characters");
+        }
+
+        // Password strength requirements
+        if (!newPassword.matches(".*[A-Z].*")) {
+            throw new ValidationException("Password must contain at least one uppercase letter");
+        }
+
+        if (!newPassword.matches(".*[a-z].*")) {
+            throw new ValidationException("Password must contain at least one lowercase letter");
+        }
+
+        if (!newPassword.matches(".*[0-9].*")) {
+            throw new ValidationException("Password must contain at least one number");
+        }
+
+        // Optional: Check for common passwords (you can expand this list)
+        Set<String> commonPasswords = Set.of(
+                "password123", "12345678", "qwerty123", "admin123", "welcome123"
+        );
+        if (commonPasswords.contains(newPassword.toLowerCase())) {
+            throw new ValidationException("Password is too common. Please choose a stronger password");
+        }
+
+        // Confirm password match
+        if (!newPassword.equals(request.getConfirmPassword())) {
+            throw new ValidationException("New password and confirm password do not match");
+        }
+
+        // Check if current and new password are the same
+        if (request.getCurrentPassword().equals(request.getNewPassword())) {
+            throw new ValidationException("New password cannot be same as current password");
+        }
     }
 
     private User createUserFromPendingRegistration(EmailVerificationService.PendingRegistration pending) {

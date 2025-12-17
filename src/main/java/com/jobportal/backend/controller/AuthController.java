@@ -1,10 +1,7 @@
 package com.jobportal.backend.controller;
 
 import com.jobportal.backend.dto.GenericResponse;
-import com.jobportal.backend.dto.security.request.LoginRequest;
-import com.jobportal.backend.dto.security.request.SignupRequest;
-import com.jobportal.backend.dto.security.request.TokenRefreshRequest;
-import com.jobportal.backend.dto.security.request.VerifySignupRequest;
+import com.jobportal.backend.dto.security.request.*;
 import com.jobportal.backend.dto.security.response.LoginResponse;
 import com.jobportal.backend.dto.security.response.SignupResponse;
 import com.jobportal.backend.dto.security.response.TokenRefreshResponse;
@@ -23,6 +20,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
@@ -88,7 +87,7 @@ public class AuthController {
 
         SignupResponse response = SignupResponse.builder()
                 .email(signUpRequest.getEmail())
-                .fullName(signUpRequest.getFullName()) // Changed from username
+                .fullName(signUpRequest.getFullName())
                 .message("Verification code sent to your email. Please check your inbox.")
                 .build();
 
@@ -167,5 +166,29 @@ public class AuthController {
 
         authService.logout(refreshToken);
         return ResponseEntity.ok(GenericResponse.success("Logout successful"));
+    }
+
+
+    @Operation(summary = "Change password",
+            description = "Change password for authenticated user (requires current password)")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Password changed successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid input"),
+            @ApiResponse(responseCode = "401", description = "Invalid current password or unverified email"),
+            @ApiResponse(responseCode = "403", description = "Unauthorized - login required")
+    })
+
+    @PostMapping("/change-password")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<GenericResponse<?>> changePassword(
+            @Valid @RequestBody ChangePasswordRequest request,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+
+        String authenticatedEmail = userPrincipal.getUsername();
+        log.info("Password change request for authenticated user: {}", authenticatedEmail);
+
+        authService.changePassword(request, authenticatedEmail);
+
+        return ResponseEntity.ok(GenericResponse.success("Password changed successfully"));
     }
 }
