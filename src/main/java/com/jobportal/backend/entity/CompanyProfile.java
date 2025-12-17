@@ -7,11 +7,13 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "company_profiles")
 @Data
-@EqualsAndHashCode(exclude = {"recruiter"})
+@EqualsAndHashCode(exclude = {"recruiter", "jobs"})
 public class CompanyProfile {
 
     @Id
@@ -96,9 +98,13 @@ public class CompanyProfile {
     @Column(name = "verified_at")
     private LocalDateTime verifiedAt;
 
+    // Relationships
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "recruiter_id", unique = true, nullable = false)
     private User recruiter;
+
+    @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<Job> jobs = new ArrayList<>();
 
     // Helper Methods
     @PrePersist
@@ -147,5 +153,15 @@ public class CompanyProfile {
     public void unverify() {
         this.isVerified = false;
         this.verifiedAt = null;
+    }
+
+    // Check if company can post jobs
+    public boolean canPostJobs() {
+        return isActive && isVerified && profileComplete;
+    }
+
+    // Check if company is visible to public
+    public boolean isVisibleToPublic() {
+        return isActive && isVerified;
     }
 }

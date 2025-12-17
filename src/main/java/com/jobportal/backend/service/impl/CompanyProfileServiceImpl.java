@@ -1,8 +1,9 @@
 package com.jobportal.backend.service.impl;
 
-import com.jobportal.backend.dto.security.request.CompanyProfileRequest;
-import com.jobportal.backend.dto.security.response.CompanyProfileResponse;
-import com.jobportal.backend.dto.security.response.CompanyProfileStatusResponse;
+import com.jobportal.backend.dto.company.request.AdminCompanyFilter;
+import com.jobportal.backend.dto.company.request.CompanyProfileRequest;
+import com.jobportal.backend.dto.company.response.CompanyProfileResponse;
+import com.jobportal.backend.dto.company.response.CompanyProfileStatusResponse;
 import com.jobportal.backend.entity.CompanyProfile;
 import com.jobportal.backend.entity.Industry;
 import com.jobportal.backend.entity.User;
@@ -17,6 +18,11 @@ import com.jobportal.backend.repository.UserRepository;
 import com.jobportal.backend.service.CompanyProfileService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -65,6 +71,10 @@ public class CompanyProfileServiceImpl implements CompanyProfileService {
         CompanyProfile profile = new CompanyProfile();
         mapRequestToEntity(request, profile, industry);
         profile.setRecruiter(recruiter);
+        profile.setActive(true);  // New company is active by default
+        profile.setVerified(false); // Not verified until admin approves
+        profile.setCreatedAt(LocalDateTime.now());
+        profile.setUpdatedAt(LocalDateTime.now());
 
         CompanyProfile savedProfile = companyProfileRepository.save(profile);
         log.info("Company profile created with ID: {}", savedProfile.getId());
@@ -80,6 +90,7 @@ public class CompanyProfileServiceImpl implements CompanyProfileService {
         CompanyProfile profile = companyProfileRepository.findByRecruiterId(recruiterId)
                 .orElseThrow(() -> new ProfileNotFoundException("Company profile not found"));
 
+        // Check if company name changed and if it's unique
         if (!profile.getCompanyName().equals(request.getCompanyName()) &&
                 companyProfileRepository.existsByCompanyName(request.getCompanyName())) {
             throw new ValidationException("Company name already exists");
@@ -95,6 +106,13 @@ public class CompanyProfileServiceImpl implements CompanyProfileService {
 
         mapRequestToEntity(request, profile, industry);
         profile.setUpdatedAt(LocalDateTime.now());
+
+        // If profile becomes incomplete after update, unverify it
+        if (!profile.isProfileComplete() && profile.isVerified()) {
+            profile.setVerified(false);
+            profile.setVerifiedAt(null);
+            log.info("Company profile ID: {} became incomplete, auto-unverified", profile.getId());
+        }
 
         CompanyProfile updatedProfile = companyProfileRepository.save(profile);
         log.info("Company profile updated for recruiter ID: {}", recruiterId);
@@ -118,8 +136,25 @@ public class CompanyProfileServiceImpl implements CompanyProfileService {
     public CompanyProfileResponse getProfileById(Long profileId) {
         log.debug("Getting company profile by ID: {}", profileId);
 
+        // Admin access - no restrictions
         CompanyProfile profile = companyProfileRepository.findById(profileId)
                 .orElseThrow(() -> new ProfileNotFoundException("Company profile not found"));
+
+        return mapEntityToResponse(profile);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CompanyProfileResponse getPublicProfileById(Long profileId) {
+        log.debug("Getting public company profile by ID: {}", profileId);
+
+        CompanyProfile profile = companyProfileRepository.findById(profileId)
+                .orElseThrow(() -> new ProfileNotFoundException("Company profile not found"));
+
+        // PUBLIC ACCESS - only verified and active companies
+        if (!profile.isVisibleToPublic()) {
+            throw new ProfileNotFoundException("Company profile not found or not visible");
+        }
 
         return mapEntityToResponse(profile);
     }
@@ -139,7 +174,7 @@ public class CompanyProfileServiceImpl implements CompanyProfileService {
         // Check if profile exists
         if (!recruiter.hasCompanyProfile()) {
             return new CompanyProfileStatusResponse(
-                    false, false, false, 0,
+                    false, false, false,false, 0,
                     new String[]{"companyName", "industry", "companySize", "description",
                             "contactName", "contactEmail", "city", "country"}
             );
@@ -179,6 +214,7 @@ public class CompanyProfileServiceImpl implements CompanyProfileService {
                 true,
                 profile.isProfileComplete(),
                 profile.isVerified(),
+                profile.isActive(),
                 profile.getCompletionPercentage(),
                 missingFields.toArray(new String[0])
         );
@@ -219,6 +255,10 @@ public class CompanyProfileServiceImpl implements CompanyProfileService {
             throw new ValidationException("Cannot verify incomplete company profile");
         }
 
+        if (!profile.isActive()) {
+            throw new ValidationException("Cannot verify inactive company profile");
+        }
+
         profile.verify();
         profile.setUpdatedAt(LocalDateTime.now());
 
@@ -253,6 +293,79 @@ public class CompanyProfileServiceImpl implements CompanyProfileService {
     }
 
     @Override
+    @Transactional
+    public CompanyProfileResponse activateProfile(Long profileId, Long adminId) {
+        log.info("Activating company profile ID: {} by admin ID: {}", profileId, adminId);
+
+        User admin = userRepository.findById(adminId)
+                .orElseThrow(() -> new ValidationException("Admin not found"));
+
+        if (!admin.hasRole(RoleEnum.ADMIN)) {
+            throw new UnauthorizedAccessException("Only admins can activate company profiles");
+        }
+
+        CompanyProfile profile = companyProfileRepository.findById(profileId)
+                .orElseThrow(() -> new ProfileNotFoundException("Company profile not found"));
+
+        profile.setActive(true);
+        profile.setUpdatedAt(LocalDateTime.now());
+
+        CompanyProfile activatedProfile = companyProfileRepository.save(profile);
+        log.info("Company profile ID: {} activated by admin ID: {}", profileId, adminId);
+
+        return mapEntityToResponse(activatedProfile);
+    }
+
+    @Override
+    @Transactional
+    public CompanyProfileResponse deactivateProfile(Long profileId, Long adminId) {
+        log.info("Deactivating company profile ID: {} by admin ID: {}", profileId, adminId);
+
+        User admin = userRepository.findById(adminId)
+                .orElseThrow(() -> new ValidationException("Admin not found"));
+
+        if (!admin.hasRole(RoleEnum.ADMIN)) {
+            throw new UnauthorizedAccessException("Only admins can deactivate company profiles");
+        }
+
+        CompanyProfile profile = companyProfileRepository.findById(profileId)
+                .orElseThrow(() -> new ProfileNotFoundException("Company profile not found"));
+
+        profile.setActive(false);
+        profile.setUpdatedAt(LocalDateTime.now());
+
+        CompanyProfile deactivatedProfile = companyProfileRepository.save(profile);
+        log.info("Company profile ID: {} deactivated by admin ID: {}", profileId, adminId);
+
+        return mapEntityToResponse(deactivatedProfile);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<CompanyProfileResponse> getAllVerifiedCompanies(Pageable pageable) {
+        log.debug("Getting all verified companies");
+
+        // Public endpoint - only active and verified
+        Page<CompanyProfile> companies = companyProfileRepository.findByIsActiveAndIsVerified(
+                true, true, pageable
+        );
+
+        return companies.map(this::mapEntityToResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<CompanyProfileResponse> getAllCompaniesForAdmin(Pageable pageable) {
+        log.debug("Getting all companies for admin");
+
+        // SIMPLE: Just use findAll() with pageable
+        Page<CompanyProfile> companies = companyProfileRepository.findAll(pageable);
+
+        return companies.map(this::mapEntityToResponse);
+    }
+
+
+    @Override
     @Transactional(readOnly = true)
     public boolean isProfileComplete(Long recruiterId) {
         return companyProfileRepository.findByRecruiterId(recruiterId)
@@ -264,7 +377,15 @@ public class CompanyProfileServiceImpl implements CompanyProfileService {
     @Transactional(readOnly = true)
     public boolean canPostJobs(Long recruiterId) {
         return companyProfileRepository.findByRecruiterId(recruiterId)
-                .map(profile -> profile.isProfileComplete() && profile.isActive())
+                .map(CompanyProfile::canPostJobs)
+                .orElse(false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isCompanyVerified(Long companyId) {
+        return companyProfileRepository.findById(companyId)
+                .map(CompanyProfile::isVerified)
                 .orElse(false);
     }
 
@@ -272,7 +393,7 @@ public class CompanyProfileServiceImpl implements CompanyProfileService {
     private void mapRequestToEntity(CompanyProfileRequest request, CompanyProfile entity, Industry industry) {
         entity.setCompanyName(request.getCompanyName());
         entity.setDisplayName(request.getDisplayName());
-        entity.setIndustry(industry);  // Set the Industry entity
+        entity.setIndustry(industry);
         entity.setCompanySize(request.getCompanySize());
         entity.setWebsite(request.getWebsite());
         entity.setDescription(request.getDescription());
