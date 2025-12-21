@@ -11,6 +11,9 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 @Entity
 @Table(name = "jobs")
@@ -45,8 +48,9 @@ public class Job {
     @Column(name = "salary_currency", length = 3)
     private String salaryCurrency = "NPR";
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "salary_type", length = 20)
-    private SalaryType salaryType; // MONTHLY, YEARLY, HOURLY, PROJECT_BASED
+    private SalaryType salaryType;
 
     @Column(name = "is_remote", nullable = false)
     private boolean isRemote = false;
@@ -62,6 +66,9 @@ public class Job {
 
     @Column(name = "total_applications", nullable = false)
     private int totalApplications = 0;
+
+    @Column(name = "required_skills", length = 1000)
+    private String requiredSkills = "";
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
@@ -81,4 +88,34 @@ public class Job {
 
     @OneToOne(mappedBy = "job", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private JobDescription jobDescription;
+
+    @OneToMany(mappedBy = "job", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<JobApplication> jobApplications = new ArrayList<>();
+
+    // Helper Methods
+    public List<String> getRequiredSkillsList() {
+        if (requiredSkills == null || requiredSkills.trim().isEmpty()) {
+            return new ArrayList<>();
+        }
+        return Arrays.asList(requiredSkills.split("\\s*,\\s*"));
+    }
+
+    public boolean isApplicationOpen() {
+        if (!isActive) return false;
+        if (applicationDeadline == null) return true;
+        return applicationDeadline.isAfter(LocalDateTime.now());
+    }
+
+    public boolean canApply(CandidateProfile candidate) {
+        return isApplicationOpen() &&
+                candidate != null &&
+                candidate.canApplyForJobs() &&
+                !hasApplied(candidate);
+    }
+
+    public boolean hasApplied(CandidateProfile candidate) {
+        if (candidate == null || candidate.getJobApplications() == null) return false;
+        return candidate.getJobApplications().stream()
+                .anyMatch(app -> app.getJob().getId().equals(this.id) && !app.isWithdrawn());
+    }
 }

@@ -73,7 +73,9 @@ public class User {
     @Version
     private Long version;
 
-    // Add this relationship
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private CandidateProfile candidateProfile;
+
     @OneToOne(mappedBy = "recruiter", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private CompanyProfile companyProfile;
 
