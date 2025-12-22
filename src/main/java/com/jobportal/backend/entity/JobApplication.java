@@ -33,9 +33,6 @@ public class JobApplication {
     @Column(name = "cover_letter", columnDefinition = "TEXT")
     private String coverLetter;
 
-    @Column(name = "answers_json", columnDefinition = "JSON")
-    private String answersJson;
-
     @Column(name = "match_score")
     private Integer matchScore;
 

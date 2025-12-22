@@ -3,6 +3,7 @@ package com.jobportal.backend.controller;
 import com.jobportal.backend.dto.GenericResponse;
 import com.jobportal.backend.dto.candidate.request.*;
 import com.jobportal.backend.dto.candidate.response.*;
+import com.jobportal.backend.enums.ApplicationStatus;
 import com.jobportal.backend.enums.ProfileVisibility;
 import com.jobportal.backend.security.UserPrincipal;
 import com.jobportal.backend.service.CandidateService;
@@ -13,6 +14,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -215,6 +219,30 @@ public class CandidateController {
         return ResponseEntity.ok(GenericResponse.success(response, "Application withdrawn successfully"));
     }
 
+    @PostMapping("/applications/{applicationId}/reapply")
+    @PreAuthorize("hasRole('CANDIDATE')")
+    @Operation(summary = "Reapply to a withdrawn application")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Reapplied successfully"),
+            @ApiResponse(responseCode = "400", description = "Cannot reapply"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "404", description = "Application not found")
+    })
+    public ResponseEntity<GenericResponse<JobApplicationResponse>> reapplyForJob(
+            @PathVariable Long applicationId,
+            @Valid @RequestBody(required = false) JobApplicationRequest request,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+
+        log.info("Candidate {} reapplying to application {}",
+                userPrincipal.getUsername(), applicationId);
+
+        JobApplicationRequest reapplyRequest = request != null ? request : new JobApplicationRequest();
+        JobApplicationResponse response = candidateService.reapplyForJob(
+                userPrincipal.getId(), applicationId, reapplyRequest);
+
+        return ResponseEntity.ok(GenericResponse.success(response, "Reapplied successfully"));
+    }
+
     @GetMapping("/dashboard")
     @PreAuthorize("hasRole('CANDIDATE')")
     @Operation(summary = "Get candidate dashboard")
@@ -248,5 +276,97 @@ public class CandidateController {
         CandidateProfileResponse profile = candidateService.getProfile(userPrincipal.getId());
 
         return ResponseEntity.ok(GenericResponse.success(profile.getIsResumeUploaded()));
+    }
+
+    @GetMapping("/applications/paginated")
+    @PreAuthorize("hasRole('CANDIDATE')")
+    @Operation(summary = "Get applications with pagination")
+    public ResponseEntity<GenericResponse<Page<JobApplicationResponse>>> getApplicationsPaginated(
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            @PageableDefault(size = 10) Pageable pageable) {
+
+        log.debug("Candidate {} getting applications with pagination", userPrincipal.getUsername());
+
+        Page<JobApplicationResponse> response = candidateService.getApplications(userPrincipal.getId(), pageable);
+
+        return ResponseEntity.ok(GenericResponse.success(response));
+    }
+
+    @GetMapping("/applications/status/{status}")
+    @PreAuthorize("hasRole('CANDIDATE')")
+    @Operation(summary = "Get applications by status")
+    public ResponseEntity<GenericResponse<List<JobApplicationResponse>>> getApplicationsByStatus(
+            @PathVariable ApplicationStatus status,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+
+        log.debug("Candidate {} getting applications with status: {}",
+                userPrincipal.getUsername(), status);
+
+        List<JobApplicationResponse> response = candidateService.getApplicationsByStatus(
+                userPrincipal.getId(), status);
+
+        return ResponseEntity.ok(GenericResponse.success(response));
+    }
+
+    @PutMapping("/applications/{applicationId}")
+    @PreAuthorize("hasRole('CANDIDATE')")
+    @Operation(summary = "Update application")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Application updated successfully"),
+            @ApiResponse(responseCode = "400", description = "Cannot update application"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "404", description = "Application not found")
+    })
+    public ResponseEntity<GenericResponse<JobApplicationResponse>> updateApplication(
+            @PathVariable Long applicationId,
+            @Valid @RequestBody JobApplicationRequest request,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+
+        log.info("Candidate {} updating application {}",
+                userPrincipal.getUsername(), applicationId);
+
+        JobApplicationResponse response = candidateService.updateApplication(
+                userPrincipal.getId(), applicationId, request);
+
+        return ResponseEntity.ok(GenericResponse.success(response, "Application updated successfully"));
+    }
+
+    @PutMapping("/applications/{applicationId}/favorite")
+    @PreAuthorize("hasRole('CANDIDATE')")
+    @Operation(summary = "Toggle favorite status")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Favorite status updated"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "404", description = "Application not found")
+    })
+    public ResponseEntity<GenericResponse<JobApplicationResponse>> toggleFavorite(
+            @PathVariable Long applicationId,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+
+        log.info("Candidate {} toggling favorite for application {}",
+                userPrincipal.getUsername(), applicationId);
+
+        JobApplicationResponse response = candidateService.toggleFavorite(
+                userPrincipal.getId(), applicationId);
+
+        String message = response.getIsFavorite() ?
+                "Added to favorites" : "Removed from favorites";
+
+        return ResponseEntity.ok(GenericResponse.success(response, message));
+    }
+
+    @GetMapping("/applications/check/{jobId}")
+    @PreAuthorize("hasRole('CANDIDATE')")
+    @Operation(summary = "Check if already applied for a job")
+    public ResponseEntity<GenericResponse<Boolean>> checkIfApplied(
+            @PathVariable Long jobId,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+
+        log.debug("Candidate {} checking if applied for job {}",
+                userPrincipal.getUsername(), jobId);
+
+        boolean hasApplied = candidateService.hasAppliedForJob(userPrincipal.getId(), jobId);
+
+        return ResponseEntity.ok(GenericResponse.success(hasApplied));
     }
 }

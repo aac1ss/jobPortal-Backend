@@ -1,5 +1,6 @@
 package com.jobportal.backend.dto.candidate.response;
 
+import com.jobportal.backend.dto.ProfileHealth;
 import com.jobportal.backend.dto.candidate.RecentApplication;
 import com.jobportal.backend.dto.candidate.RecommendedJob;
 import lombok.AllArgsConstructor;
@@ -27,13 +28,4 @@ public class CandidateDashboardResponse {
     private ProfileHealth profileHealth;
     private List<RecommendedJob> recommendedJobs;
 
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class ProfileHealth {
-        private Integer completionPercentage;
-        private List<String> suggestions;
-        private Map<String, Boolean> checkpoints;
-    }
 }

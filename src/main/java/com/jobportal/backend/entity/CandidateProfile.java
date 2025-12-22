@@ -110,7 +110,7 @@ public class CandidateProfile {
     @Column(name = "remote_preference")
     private Boolean remotePreference;
 
-    // Resume
+    // Resume (Optional)
     @Column(name = "resume_url", length = 500)
     private String resumeUrl;
 
@@ -167,7 +167,8 @@ public class CandidateProfile {
     @PreUpdate
     public void calculateCompletion() {
         int score = 0;
-        int maxScore = 13;
+        // CV is optional, so max score is now 12 instead of 13
+        int maxScore = 12;
 
         if (isValid(firstName)) score++;
         if (isValid(lastName)) score++;
@@ -180,7 +181,7 @@ public class CandidateProfile {
         if (skills != null && !skills.trim().isEmpty() && skills.split(",").length >= 3) score++;
         if (preferredJobTypesJson != null && !preferredJobTypesJson.equals("[]") && !preferredJobTypesJson.equals("")) score++;
         if (preferredLocationsJson != null && !preferredLocationsJson.equals("[]") && !preferredLocationsJson.equals("")) score++;
-        if (isResumeUploaded) score++;
+        // CV is optional - removed from completion calculation
         if (profilePictureUrl != null && !profilePictureUrl.trim().isEmpty()) score++;
 
         this.completionPercentage = (score * 100) / maxScore;
@@ -193,12 +194,12 @@ public class CandidateProfile {
     }
 
     public boolean canApplyForJobs() {
+        // CV is optional - removed isResumeUploaded check
+        // Actively looking is optional - removed isActivelyLooking check
         return isProfileComplete &&
-                isActivelyLooking &&
                 user != null &&
                 user.isActive() &&
-                user.isEmailVerified() &&
-                isResumeUploaded;
+                user.isEmailVerified();
     }
 
     public String getFullName() {

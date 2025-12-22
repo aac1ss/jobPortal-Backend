@@ -1,14 +1,13 @@
-package com.jobportal.backend.service;
+package com.jobportal.backend.service.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jobportal.backend.dto.ProfileHealth;
 import com.jobportal.backend.dto.candidate.RecentApplication;
 import com.jobportal.backend.dto.candidate.RecommendedJob;
 import com.jobportal.backend.dto.candidate.request.*;
 import com.jobportal.backend.dto.candidate.response.*;
-import com.jobportal.backend.dto.candidate.response.CandidateDashboardResponse.ProfileHealth;
-import com.jobportal.backend.dto.candidate.response.LanguageResponse;
 import com.jobportal.backend.entity.*;
 import com.jobportal.backend.enums.*;
 import com.jobportal.backend.exception.BadRequestException;
@@ -16,15 +15,19 @@ import com.jobportal.backend.exception.CustomAccessDeniedException;
 import com.jobportal.backend.exception.NotFoundException;
 import com.jobportal.backend.exception.UnauthorizedAccessException;
 import com.jobportal.backend.repository.*;
+import com.jobportal.backend.service.CandidateService;
+import com.jobportal.backend.service.MatchScoreService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -39,6 +42,7 @@ public class CandidateServiceImpl implements CandidateService {
     private final JobApplicationRepository jobApplicationRepository;
     private final JobRepository jobRepository;
     private final ObjectMapper objectMapper;
+    private final MatchScoreService matchScoreService;
 
     @Override
     @Transactional
@@ -251,12 +255,8 @@ public class CandidateServiceImpl implements CandidateService {
         if (!profile.isProfileComplete()) {
             eligibilityReasons.add("Complete your profile to at least 80%");
         }
-        if (!profile.isActivelyLooking()) {
-            eligibilityReasons.add("You're marked as not actively looking");
-        }
-        if (!profile.isResumeUploaded()) {
-            eligibilityReasons.add("Upload your resume");
-        }
+        // CV is optional - removed from eligibility check
+        // Actively looking is optional - removed from eligibility check
 
         CandidateProfileResponse response = mapToProfileResponse(profile);
         response.setEligibilityReasons(eligibilityReasons);
@@ -270,7 +270,36 @@ public class CandidateServiceImpl implements CandidateService {
         CandidateProfile candidate = candidateProfileRepository.findByUserId(userId)
                 .orElseThrow(() -> new NotFoundException("Candidate profile not found"));
 
+        // Validate candidate eligibility
+        validateCandidateEligibility(candidate);
+
+        Job job = jobRepository.findById(request.getJobId())
+                .orElseThrow(() -> new NotFoundException("Job not found"));
+
+        // Validate job eligibility
+        validateJobEligibility(job, candidate);
+
+        // Check for duplicate application
+        if (jobApplicationRepository.existsByJobIdAndCandidateId(job.getId(), candidate.getId())) {
+            throw new BadRequestException("You have already applied for this job");
+        }
+
+        // Create and save application
+        JobApplication application = createJobApplication(job, candidate, request);
+        JobApplication saved = jobApplicationRepository.save(application);
+
+        // Update job statistics
+        updateJobApplicationCount(job);
+
+        log.info("Candidate {} applied for job {} with match score {}",
+                candidate.getId(), job.getId(), saved.getMatchScore());
+
+        return mapToApplicationResponse(saved);
+    }
+
+    private void validateCandidateEligibility(CandidateProfile candidate) {
         User user = candidate.getUser();
+
         if (!user.isActive()) {
             throw new BadRequestException("Your account is not active");
         }
@@ -283,16 +312,11 @@ public class CandidateServiceImpl implements CandidateService {
                             candidate.getCompletionPercentage() + "%"
             );
         }
-        if (!candidate.isActivelyLooking()) {
-            throw new BadRequestException("You're marked as not actively looking. Update your status to apply.");
-        }
-        if (!candidate.isResumeUploaded()) {
-            throw new BadRequestException("Please upload your resume before applying");
-        }
+        // CV is optional - removed check
+        // Actively looking is optional - removed check
+    }
 
-        Job job = jobRepository.findById(request.getJobId())
-                .orElseThrow(() -> new NotFoundException("Job not found"));
-
+    private void validateJobEligibility(Job job, CandidateProfile candidate) {
         if (!job.isActive()) {
             throw new BadRequestException("This job is no longer active");
         }
@@ -301,160 +325,38 @@ public class CandidateServiceImpl implements CandidateService {
             throw new BadRequestException("Application deadline has passed or job is closed");
         }
 
-        if (jobApplicationRepository.existsByJobIdAndCandidateId(job.getId(), candidate.getId())) {
-            throw new BadRequestException("You have already applied for this job");
+        if (!job.getCompany().isActive()) {
+            throw new BadRequestException("Company is not active");
         }
 
+        if (!job.getCompany().isVerified()) {
+            throw new BadRequestException("Company is not verified");
+        }
+
+        if (!job.canApply(candidate)) {
+            throw new BadRequestException("You are not eligible to apply for this job");
+        }
+    }
+
+    private JobApplication createJobApplication(Job job, CandidateProfile candidate, JobApplicationRequest request) {
         JobApplication application = new JobApplication();
         application.setJob(job);
         application.setCandidate(candidate);
         application.setCoverLetter(request.getCoverLetter());
 
-        try {
-            if (request.getAnswers() != null) {
-                application.setAnswersJson(objectMapper.writeValueAsString(request.getAnswers()));
-            }
-        } catch (JsonProcessingException e) {
-            log.error("Error saving answers", e);
-        }
+        // No answers field since there are no questions
 
-        int matchScore = calculateMatchScore(candidate, job);
+        // Calculate match score using MatchScoreService
+        int matchScore = matchScoreService.calculateMatchScore(candidate, job);
         application.setMatchScore(matchScore);
-        application.setMatchNotes(generateMatchNotes(candidate, job, matchScore));
+        application.setMatchNotes(matchScoreService.generateMatchNotes(candidate, job, matchScore));
 
-        JobApplication saved = jobApplicationRepository.save(application);
+        return application;
+    }
 
+    private void updateJobApplicationCount(Job job) {
         job.setTotalApplications(job.getTotalApplications() + 1);
         jobRepository.save(job);
-
-        log.info("Candidate {} applied for job {} with match score {}",
-                candidate.getId(), job.getId(), matchScore);
-
-        return mapToApplicationResponse(saved);
-    }
-
-    private int calculateMatchScore(CandidateProfile candidate, Job job) {
-        int score = 0;
-
-        List<String> candidateSkills = candidate.getSkillsList();
-        List<String> jobSkills = job.getRequiredSkillsList();
-
-        if (!candidateSkills.isEmpty() && !jobSkills.isEmpty()) {
-            long matchingSkills = candidateSkills.stream()
-                    .filter(cSkill -> jobSkills.stream()
-                            .anyMatch(jSkill -> jSkill.toLowerCase().contains(cSkill.toLowerCase()) ||
-                                    cSkill.toLowerCase().contains(jSkill.toLowerCase())))
-                    .count();
-
-            if (!jobSkills.isEmpty()) {
-                double skillMatchPercent = (double) matchingSkills / jobSkills.size();
-                score += (int) (skillMatchPercent * 40);
-            }
-        }
-
-        // USE YOUR UPDATED ExperienceLevel ENUM VALUES
-        if (candidate.getTotalExperienceYears() != null) {
-            float candidateExpYears = candidate.getTotalExperienceYears();
-            ExperienceLevel requiredLevel = job.getExperienceLevel();
-
-            switch (requiredLevel) {
-                case INTERN: // 0-0.5 years
-                    if (candidateExpYears <= 0.5) score += 30;
-                    else if (candidateExpYears <= 1) score += 20;
-                    else if (candidateExpYears <= 2) score += 10;
-                    else score += 5;
-                    break;
-
-                case JUNIOR_LEVEL: // 0-2 years
-                    if (candidateExpYears <= 2) score += 30;
-                    else if (candidateExpYears <= 3) score += 20;
-                    else if (candidateExpYears <= 4) score += 10;
-                    else score += 5;
-                    break;
-
-                case MID_LEVEL: // 2-5 years
-                    if (candidateExpYears >= 2 && candidateExpYears <= 5) score += 30;
-                    else if (candidateExpYears >= 1 && candidateExpYears < 2) score += 20;
-                    else if (candidateExpYears > 5 && candidateExpYears <= 7) score += 15;
-                    else if (candidateExpYears < 1) score += 5;
-                    else score += 10;
-                    break;
-
-                case SENIOR_LEVEL: // 5-10 years
-                    if (candidateExpYears >= 5 && candidateExpYears <= 10) score += 30;
-                    else if (candidateExpYears >= 3 && candidateExpYears < 5) score += 20;
-                    else if (candidateExpYears > 10) score += 25;
-                    else if (candidateExpYears >= 1 && candidateExpYears < 3) score += 10;
-                    else score += 5;
-                    break;
-
-                case EXECUTIVE: // 10+ years or senior leadership
-                    if (candidateExpYears >= 10) score += 30;
-                    else if (candidateExpYears >= 8) score += 25;
-                    else if (candidateExpYears >= 5) score += 20;
-                    else if (candidateExpYears >= 3) score += 15;
-                    else score += 10;
-                    break;
-
-                default:
-                    score += 15;
-            }
-        }
-
-        List<String> preferredLocations = candidate.getPreferredLocationsList();
-        if (preferredLocations != null && !preferredLocations.isEmpty()) {
-            String jobLocation = job.getLocation().toLowerCase();
-            boolean locationMatch = preferredLocations.stream()
-                    .anyMatch(loc -> loc.toLowerCase().contains(jobLocation) ||
-                            jobLocation.contains(loc.toLowerCase()));
-
-            if (locationMatch) {
-                score += 20;
-            } else if (job.isRemote() && (candidate.getRemotePreference() == null || candidate.getRemotePreference())) {
-                score += 20;
-            }
-        } else if (job.isRemote() && (candidate.getRemotePreference() == null || candidate.getRemotePreference())) {
-            score += 20;
-        }
-
-        List<String> preferredJobTypes = candidate.getPreferredJobTypesList();
-        if (preferredJobTypes != null && !preferredJobTypes.isEmpty()) {
-            if (preferredJobTypes.contains(job.getJobType().name())) {
-                score += 10;
-            }
-        }
-
-        return Math.min(score, 100);
-    }
-
-    private String generateMatchNotes(CandidateProfile candidate, Job job, int score) {
-        List<String> notes = new ArrayList<>();
-
-        if (score >= 80) {
-            notes.add("Excellent match! Your skills align perfectly with the job requirements.");
-        } else if (score >= 60) {
-            notes.add("Good match. You have relevant skills and experience.");
-        } else if (score >= 40) {
-            notes.add("Moderate match. Consider highlighting your transferable skills.");
-        } else {
-            notes.add("Basic match. The role may require additional skills.");
-        }
-
-        List<String> candidateSkills = candidate.getSkillsList();
-        List<String> jobSkills = job.getRequiredSkillsList();
-
-        if (!candidateSkills.isEmpty() && !jobSkills.isEmpty()) {
-            List<String> matchingSkills = candidateSkills.stream()
-                    .filter(cSkill -> jobSkills.stream()
-                            .anyMatch(jSkill -> jSkill.toLowerCase().contains(cSkill.toLowerCase())))
-                    .collect(Collectors.toList());
-
-            if (!matchingSkills.isEmpty()) {
-                notes.add("Matching skills: " + String.join(", ", matchingSkills));
-            }
-        }
-
-        return String.join(" ", notes);
     }
 
     @Override
@@ -463,14 +365,22 @@ public class CandidateServiceImpl implements CandidateService {
         JobApplication application = jobApplicationRepository.findById(applicationId)
                 .orElseThrow(() -> new NotFoundException("Application not found"));
 
+        // Check ownership
         if (!application.getCandidate().getUser().getId().equals(userId)) {
             throw new UnauthorizedAccessException("You can only withdraw your own applications");
         }
 
+        // Check if already withdrawn
         if (application.isWithdrawn()) {
             throw new BadRequestException("Application already withdrawn");
         }
 
+        // Check if can be withdrawn (not hired/rejected)
+        if (!canWithdrawApplication(application)) {
+            throw new BadRequestException("Cannot withdraw application in current status");
+        }
+
+        // Withdraw application
         application.setWithdrawn(true);
         application.setStatus(ApplicationStatus.WITHDRAWN);
 
@@ -480,6 +390,11 @@ public class CandidateServiceImpl implements CandidateService {
         return mapToApplicationResponse(saved);
     }
 
+    private boolean canWithdrawApplication(JobApplication application) {
+        return application.getStatus() != ApplicationStatus.HIRED &&
+                application.getStatus() != ApplicationStatus.REJECTED;
+    }
+
     @Override
     @Transactional(readOnly = true)
     public List<JobApplicationResponse> getApplications(Long userId) {
@@ -487,6 +402,16 @@ public class CandidateServiceImpl implements CandidateService {
         return applications.stream()
                 .map(this::mapToApplicationResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<JobApplicationResponse> getApplications(Long userId, Pageable pageable) {
+        CandidateProfile candidate = candidateProfileRepository.findByUserId(userId)
+                .orElseThrow(() -> new NotFoundException("Candidate profile not found"));
+
+        Page<JobApplication> applications = jobApplicationRepository.findByCandidateId(candidate.getId(), pageable);
+        return applications.map(this::mapToApplicationResponse);
     }
 
     @Override
@@ -535,7 +460,7 @@ public class CandidateServiceImpl implements CandidateService {
                 .count());
 
         List<JobApplication> recentApps = jobApplicationRepository
-                .findRecentByCandidateId(candidate.getId(), 5);
+                .findRecentByCandidateId(candidate.getId(), Pageable.ofSize(5));
 
         List<RecentApplication> recentApplications = recentApps.stream()
                 .map(this::mapToRecentApplication)
@@ -565,6 +490,7 @@ public class CandidateServiceImpl implements CandidateService {
         checkpoints.put("Education",
                 candidate.getEducationJson() != null && !candidate.getEducationJson().equals("[]"));
         checkpoints.put("Skills (3+)", candidate.getSkillsList().size() >= 3);
+        // CV is optional - removed from checkpoints (but still shown as optional improvement)
         checkpoints.put("Resume Uploaded", candidate.isResumeUploaded());
         checkpoints.put("Job Preferences",
                 (candidate.getPreferredJobTypesList() != null && !candidate.getPreferredJobTypesList().isEmpty()) &&
@@ -578,7 +504,7 @@ public class CandidateServiceImpl implements CandidateService {
         if (!checkpoints.get("Summary (50+ chars)")) suggestions.add("Write a compelling summary (minimum 50 characters)");
         if (!checkpoints.get("Work Experience")) suggestions.add("Add your work experience");
         if (!checkpoints.get("Skills (3+)")) suggestions.add("Add at least 3 skills");
-        if (!checkpoints.get("Resume Uploaded")) suggestions.add("Upload your resume");
+        if (!checkpoints.get("Resume Uploaded")) suggestions.add("Upload your resume for better matching");
         if (!checkpoints.get("Job Preferences")) suggestions.add("Set your job preferences");
 
         health.setSuggestions(suggestions);
@@ -593,6 +519,7 @@ public class CandidateServiceImpl implements CandidateService {
 
         List<Job> activeJobs = jobRepository.findByIsActiveTrue(PageRequest.of(0, 50));
 
+        // Filter and sort jobs based on match score
         return activeJobs.stream()
                 .filter(job -> job.isActive() && job.isApplicationOpen())
                 .filter(job -> !job.hasApplied(candidate))
@@ -603,7 +530,7 @@ public class CandidateServiceImpl implements CandidateService {
                     recommended.setCompanyName(job.getCompany().getCompanyName());
                     recommended.setLocation(job.getLocation());
                     recommended.setJobType(job.getJobType().name());
-                    recommended.setMatchScore(calculateMatchScore(candidate, job));
+                    recommended.setMatchScore(matchScoreService.calculateMatchScore(candidate, job));
                     recommended.setIsRemote(job.isRemote());
                     recommended.setSalaryRange(formatSalaryRange(job));
                     recommended.setPostedDate(job.getCreatedAt());
@@ -614,20 +541,135 @@ public class CandidateServiceImpl implements CandidateService {
                 .collect(Collectors.toList());
     }
 
-    private String formatSalaryRange(Job job) {
-        if (job.getSalaryMin() == null && job.getSalaryMax() == null) {
-            return "Negotiable";
+    @Override
+    @Transactional
+    public JobApplicationResponse updateApplication(Long userId, Long applicationId,
+                                                    JobApplicationRequest request) {
+        JobApplication application = jobApplicationRepository.findById(applicationId)
+                .orElseThrow(() -> new NotFoundException("Application not found"));
+
+        if (!application.getCandidate().getUser().getId().equals(userId)) {
+            throw new UnauthorizedAccessException("You can only update your own applications");
         }
-        if (job.getSalaryMin() != null && job.getSalaryMax() != null) {
-            return job.getSalaryMin() + " - " + job.getSalaryMax() + " " + job.getSalaryCurrency();
+
+        if (!canUpdateApplication(application)) {
+            throw new BadRequestException("Cannot update application in current status");
         }
-        if (job.getSalaryMin() != null) {
-            return "From " + job.getSalaryMin() + " " + job.getSalaryCurrency();
+
+        // Update application fields - only cover letter can be updated
+        if (request.getCoverLetter() != null) {
+            application.setCoverLetter(request.getCoverLetter());
         }
-        return "Up to " + job.getSalaryMax() + " " + job.getSalaryCurrency();
+
+        JobApplication saved = jobApplicationRepository.save(application);
+        return mapToApplicationResponse(saved);
     }
 
-    // MAPPING METHODS
+    private boolean canUpdateApplication(JobApplication application) {
+        return !application.isWithdrawn() &&
+                (application.getStatus() == ApplicationStatus.APPLIED ||
+                        application.getStatus() == ApplicationStatus.VIEWED);
+    }
+
+    @Override
+    @Transactional
+    public JobApplicationResponse toggleFavorite(Long userId, Long applicationId) {
+        JobApplication application = jobApplicationRepository.findById(applicationId)
+                .orElseThrow(() -> new NotFoundException("Application not found"));
+
+        if (!application.getCandidate().getUser().getId().equals(userId)) {
+            throw new UnauthorizedAccessException("You can only modify your own applications");
+        }
+
+        application.setFavorite(!application.isFavorite());
+        JobApplication saved = jobApplicationRepository.save(application);
+
+        String action = saved.isFavorite() ? "added to" : "removed from";
+        log.info("Application {} {} favorites by user {}", applicationId, action, userId);
+
+        return mapToApplicationResponse(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean hasAppliedForJob(Long userId, Long jobId) {
+        return jobApplicationRepository.findByUserIdAndJobId(userId, jobId).isPresent();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<JobApplicationResponse> getApplicationsByStatus(Long userId, ApplicationStatus status) {
+        List<JobApplication> applications = jobApplicationRepository.findByUserIdAndStatus(userId, status);
+        return applications.stream()
+                .map(this::mapToApplicationResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public JobApplicationResponse reapplyForJob(Long userId, Long applicationId, JobApplicationRequest request) {
+        JobApplication application = jobApplicationRepository.findById(applicationId)
+                .orElseThrow(() -> new NotFoundException("Application not found"));
+
+        // Check ownership
+        if (!application.getCandidate().getUser().getId().equals(userId)) {
+            throw new UnauthorizedAccessException("You can only reapply to your own applications");
+        }
+
+        // Check if application is withdrawn
+        if (!application.isWithdrawn()) {
+            throw new BadRequestException("You can only reapply to withdrawn applications");
+        }
+
+        // Validate candidate eligibility
+        validateCandidateEligibility(application.getCandidate());
+
+        Job job = application.getJob();
+
+        // Validate job eligibility
+        validateJobEligibility(job, application.getCandidate());
+
+        // Check if job is still open for applications
+        if (!job.isActive() || !job.isApplicationOpen()) {
+            throw new BadRequestException("This job is no longer accepting applications");
+        }
+
+        // Check if there's already an active application for this job
+        if (jobApplicationRepository.existsByJobIdAndCandidateIdAndIsWithdrawnFalse(
+                job.getId(), application.getCandidate().getId())) {
+            throw new BadRequestException("You already have an active application for this job");
+        }
+
+        // Update application for reapplication
+        application.setWithdrawn(false);
+        application.setStatus(ApplicationStatus.APPLIED);
+        application.setStatusChangedAt(LocalDateTime.now());
+        application.setAppliedAt(LocalDateTime.now());
+
+        // Update cover letter if provided
+        if (request.getCoverLetter() != null) {
+            application.setCoverLetter(request.getCoverLetter());
+        }
+
+        // Recalculate match score
+        int matchScore = matchScoreService.calculateMatchScore(application.getCandidate(), job);
+        application.setMatchScore(matchScore);
+        application.setMatchNotes(matchScoreService.generateMatchNotes(
+                application.getCandidate(), job, matchScore));
+
+        JobApplication saved = jobApplicationRepository.save(application);
+
+        // Update job application count
+        updateJobApplicationCount(job);
+
+        log.info("Candidate {} reapplied for job {} (applicationId: {})",
+                userId, job.getId(), applicationId);
+
+        return mapToApplicationResponse(saved);
+    }
+
+    // =========== MAPPING METHODS ===========
+
     private CandidateProfileResponse mapToProfileResponse(CandidateProfile profile) {
         CandidateProfileResponse response = new CandidateProfileResponse();
 
@@ -731,9 +773,75 @@ public class CandidateServiceImpl implements CandidateService {
         }
         response.setApplicationStatusCount(statusCount);
 
-        response.setCanApplyForJobs(profile.canApplyForJobs());
+        // Updated: CV is optional, actively looking is optional
+        boolean canApply = profile.getUser().isActive() &&
+                profile.getUser().isEmailVerified() &&
+                profile.isProfileComplete();
+        response.setCanApplyForJobs(canApply);
 
         return response;
+    }
+
+    private boolean canReapplyApplication(JobApplication application) {
+        return application.isWithdrawn() &&
+                application.getJob().isActive() &&
+                application.getJob().isApplicationOpen() &&
+                !jobApplicationRepository.existsByJobIdAndCandidateIdAndIsWithdrawnFalse(
+                        application.getJob().getId(), application.getCandidate().getId());
+    }
+
+    private JobApplicationResponse mapToApplicationResponse(JobApplication application) {
+        JobApplicationResponse response = new JobApplicationResponse();
+
+        response.setId(application.getId());
+        response.setJobId(application.getJob().getId());
+        response.setJobTitle(application.getJob().getTitle());
+        response.setCompanyId(application.getJob().getCompany().getId());
+        response.setCompanyName(application.getJob().getCompany().getCompanyName());
+        response.setCompanyLogo(application.getJob().getCompany().getLogoUrl());
+        response.setStatus(application.getStatus());
+        response.setAppliedAt(application.getAppliedAt());
+        response.setStatusChangedAt(application.getStatusChangedAt());
+        response.setCoverLetter(application.getCoverLetter());
+
+        // No answers field
+
+        response.setMatchScore(application.getMatchScore());
+        response.setMatchNotes(application.getMatchNotes());
+        response.setIsWithdrawn(application.isWithdrawn());
+        response.setIsFavorite(application.isFavorite());
+        response.setCreatedAt(application.getCreatedAt());
+        response.setUpdatedAt(application.getUpdatedAt());
+
+        // Job details
+        Job job = application.getJob();
+        response.setLocation(job.getLocation());
+        response.setJobType(job.getJobType().name());
+        response.setIsRemote(job.isRemote());
+        response.setSalaryRange(formatSalaryRange(job));
+        response.setExperienceLevel(job.getExperienceLevel().name());
+        response.setApplicationDeadline(job.getApplicationDeadline());
+        response.setIsApplicationOpen(job.isApplicationOpen());
+
+        // Permissions
+        response.setCanWithdraw(canWithdrawApplication(application));
+        response.setCanUpdate(canUpdateApplication(application));
+        response.setCanReapply(canReapplyApplication(application));
+
+        return response;
+    }
+
+    private String formatSalaryRange(Job job) {
+        if (job.getSalaryMin() == null && job.getSalaryMax() == null) {
+            return "Negotiable";
+        }
+        if (job.getSalaryMin() != null && job.getSalaryMax() != null) {
+            return job.getSalaryMin() + " - " + job.getSalaryMax() + " " + job.getSalaryCurrency();
+        }
+        if (job.getSalaryMin() != null) {
+            return "From " + job.getSalaryMin() + " " + job.getSalaryCurrency();
+        }
+        return "Up to " + job.getSalaryMax() + " " + job.getSalaryCurrency();
     }
 
     private EducationResponse mapToEducationResponse(EducationRequest edu) {
@@ -799,35 +907,6 @@ public class CandidateServiceImpl implements CandidateService {
         LanguageResponse response = new LanguageResponse();
         response.setLanguage(lang.getLanguage());
         response.setProficiency(lang.getProficiency());
-        return response;
-    }
-
-    private JobApplicationResponse mapToApplicationResponse(JobApplication application) {
-        JobApplicationResponse response = new JobApplicationResponse();
-
-        response.setId(application.getId());
-        response.setJobId(application.getJob().getId());
-        response.setJobTitle(application.getJob().getTitle());
-        response.setCompanyId(application.getJob().getCompany().getId());
-        response.setCompanyName(application.getJob().getCompany().getCompanyName());
-        response.setCompanyLogo(application.getJob().getCompany().getLogoUrl());
-        response.setStatus(application.getStatus());
-        response.setAppliedAt(application.getAppliedAt());
-        response.setCoverLetter(application.getCoverLetter());
-        response.setMatchScore(application.getMatchScore());
-        response.setMatchNotes(application.getMatchNotes());
-        response.setIsWithdrawn(application.isWithdrawn());
-        response.setIsFavorite(application.isFavorite());
-        response.setCreatedAt(application.getCreatedAt());
-
-        Job job = application.getJob();
-        response.setLocation(job.getLocation());
-        response.setJobType(job.getJobType().name());
-        response.setIsRemote(job.isRemote());
-        response.setSalaryRange(formatSalaryRange(job));
-        response.setApplicationDeadline(job.getApplicationDeadline());
-        response.setIsApplicationOpen(job.isApplicationOpen());
-
         return response;
     }
 
