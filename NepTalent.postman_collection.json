@@ -1,0 +1,2163 @@
+{
+	"info": {
+		"_postman_id": "1571894a-c282-4cc1-88cb-7336243974cf",
+		"name": "NepTalent",
+		"description": "Complete API collection for NepTalent Job Portal with Authentication, Jobs, Applications, and more",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "39381307",
+		"_collection_link": "https://mofin3-1705.postman.co/workspace/ForgeLabs~cf2aede1-fad8-4017-873d-ad6e5df541ae/collection/39381307-1571894a-c282-4cc1-88cb-7336243974cf?action=share&source=collection_link&creator=39381307"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Forgot Password",
+					"item": [
+						{
+							"name": "1) Forgot Password",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"email\": \"tryaac1ss@gmail.com\"\n  }",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8080/api/auth/password/forgot",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8080",
+									"path": [
+										"api",
+										"auth",
+										"password",
+										"forgot"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "2) Forgot Password {RESET}",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"token\": \"932473\",\n    \"newPassword\": \"@Ashishthapa46\"\n  }",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8080/api/auth/password/reset",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8080",
+									"path": [
+										"api",
+										"auth",
+										"password",
+										"reset"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "SIGN IN",
+					"item": [
+						{
+							"name": "SignIn/admin",
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"email\": \"tryaac1ss@gmail.com\",\n    \"password\": \"@Ashishthapa46\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8080/api/auth/admin/login",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8080",
+									"path": [
+										"api",
+										"auth",
+										"admin",
+										"login"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "SignIn/candidate",
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"email\": \"ashishthapa.079@kathford.edu.np\",\n    \"password\": \"@Ashishthapa46\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8080/api/auth/candidate/login",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8080",
+									"path": [
+										"api",
+										"auth",
+										"candidate",
+										"login"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "SignIn/recruiter",
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"email\": \"thapa0987654321@gmail.com\",\n    \"password\": \"@Ashishthapa46\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8080/api/auth/recruiter/login",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8080",
+									"path": [
+										"api",
+										"auth",
+										"recruiter",
+										"login"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Register",
+					"item": [
+						{
+							"name": "Register/candidate",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"fullName\": \"ashish\",\n    \"email\": \"ashishthapa.079@kathford.edu.np\",\n    \"password\": \"@Ashishthapa46\",\n    \"roleEnums\": [\"CANDIDATE\"]\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8080/api/auth/signup",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8080",
+									"path": [
+										"api",
+										"auth",
+										"signup"
+									]
+								},
+								"description": "Generated from cURL: curl -X POST http://localhost:8080/api/auth/register/candidate \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"email\": \"candidate@example.com\",\n    \"password\": \"Password123!\",\n    \"phone\": \"+1234567890\"\n  }'"
+							},
+							"response": []
+						},
+						{
+							"name": "Register/admin",
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"fullName\": \"Ashish Thapa\",\n    \"email\": \"tryaac1ss@gmail.com\",\n    \"password\": \"@Ashishthapa46\",\n    \"roleEnums\": [\"ADMIN\"]\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8080/api/auth/signup",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8080",
+									"path": [
+										"api",
+										"auth",
+										"signup"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Register/recruiter",
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"fullName\": \"Ashish Thapa\",\n    \"email\": \"thapa0987654321@gmail.com\",\n    \"password\": \"@Ashishthapa46\",\n    \"roleEnums\": [\"RECRUITER\"]\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:8080/api/auth/signup",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8080",
+									"path": [
+										"api",
+										"auth",
+										"signup"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "SignOut",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer YOUR_ACCESS_TOKEN_HERE"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "http://localhost:8080/api/auth/signout",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"auth",
+								"signout"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Signup",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"ashishthapa.079@kathford.edu.np\",\n    \"otp\": \"686022\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/verify-signup",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"verify-signup"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Resend Verification OTP",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/resend-verification?email={{newUserEmail}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"resend-verification"
+							],
+							"query": [
+								{
+									"key": "email",
+									"value": "{{newUserEmail}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Change Password",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Save token from login response",
+									"const loginResponse = pm.response.json();",
+									"if (loginResponse.success && loginResponse.data && loginResponse.data.accessToken) {",
+									"    const token = loginResponse.data.accessToken;",
+									"    pm.environment.set(\"userToken\", token);",
+									"    console.log(\"Token saved:\", token);",
+									"}"
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{userToken}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"currentPassword\": \"@Ashishthapa46\",\n  \"newPassword\": \"@Ashishthapa4646\",\n  \"confirmPassword\": \"@Ashishthapa4646\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/change-password",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"change-password"
+							]
+						},
+						"description": "Change password using JWT token (no email needed)"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Recruiter",
+			"item": [
+				{
+					"name": "Jobs",
+					"item": [
+						{
+							"name": "Create Job",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{recruiterToken}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"title\": \"Senior Backend Developer - Java/Spring Boot\",\n  \"jobType\": \"FULL_TIME\",\n  \"experienceLevel\": \"SENIOR_LEVEL\",\n  \"location\": \"Kathmandu, Nepal\",\n  \"salaryMin\": 80000,\n  \"salaryMax\": 150000,\n  \"salaryCurrency\": \"NPR\",\n  \"salaryType\": \"MONTHLY\",\n  \"isRemote\": false,\n  \"applicationDeadline\": \"2024-03-31T23:59:59\",\n  \"overview\": \"We are looking for a skilled Senior Backend Developer to join our team. You will be responsible for designing, developing, and maintaining our core banking and payment systems using Java and Spring Boot.\",\n  \"responsibilities\": \"1. Design and develop high-performance backend services\\\\n2. Implement secure payment processing systems\\\\n3. Integrate with third-party banking APIs\\\\n4. Write clean, maintainable, and testable code\\\\n5. Collaborate with frontend developers and DevOps team\\\\n6. Troubleshoot and debug production issues\",\n  \"requirements\": \"1. Bachelor's degree in Computer Science or related field\\\\n2. 4+ years of experience in Java development\\\\n3. Strong knowledge of Spring Boot, Spring Security, and Hibernate\\\\n4. Experience with RESTful APIs and microservices\\\\n5. Knowledge of PostgreSQL or MySQL\\\\n6. Understanding of Docker and Kubernetes\\\\n7. Familiarity with AWS or GCP\",\n  \"niceToHave\": \"1. Experience with payment gateways and financial systems\\\\n2. Knowledge of message queues (RabbitMQ, Kafka)\\\\n3. Experience with CI/CD pipelines\\\\n4. Understanding of security best practices\",\n  \"benefits\": \"1. Competitive salary\\\\n2. Health insurance\\\\n3. Provident fund\\\\n4. Flexible working hours\\\\n5. Learning and development opportunities\\\\n6. Team outings and events\",\n  \"applicationInstructions\": \"Please send your resume, cover letter, and GitHub profile to careers@esewa.com.np\"\n}"
+								},
+								"url": {
+									"raw": "http://localhost:8080/api/jobs",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8080",
+									"path": [
+										"api",
+										"jobs"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Job by ID",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "http://localhost:8080/api/jobs/1",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8080",
+									"path": [
+										"api",
+										"jobs",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get All Jobs",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{recruiterToken}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "http://localhost:8080/api/jobs?page=0&size=10",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8080",
+									"path": [
+										"api",
+										"jobs"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "0"
+										},
+										{
+											"key": "size",
+											"value": "10"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get My Jobs",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{recruiter_token}}"
+									}
+								],
+								"url": {
+									"raw": "http://localhost:8080/api/jobs/my-jobs?page=0&size=10",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8080",
+									"path": [
+										"api",
+										"jobs",
+										"my-jobs"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "0"
+										},
+										{
+											"key": "size",
+											"value": "10"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Job",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{recruiter_token}}"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"title\": \"Senior Backend Developer - Java/Spring Boot (Updated)\",\n  \"salaryMin\": 90000,\n  \"salaryMax\": 160000,\n  \"location\": \"Kathmandu, Nepal (Hybrid)\",\n  \"isRemote\": true\n}"
+								},
+								"url": {
+									"raw": "http://localhost:8080/api/jobs/1",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8080",
+									"path": [
+										"api",
+										"jobs",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Deactivate Job",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{recruiter_token}}"
+									}
+								],
+								"url": {
+									"raw": "http://localhost:8080/api/jobs/1/deactivate",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8080",
+									"path": [
+										"api",
+										"jobs",
+										"1",
+										"deactivate"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Job",
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{recruiter_token}}"
+									}
+								],
+								"url": {
+									"raw": "http://localhost:8080/api/jobs/1",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8080",
+									"path": [
+										"api",
+										"jobs",
+										"1"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Recruiter - Company Profile",
+					"item": [
+						{
+							"name": "Create Company Profile",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{recruiterToken}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n\"companyName\": \"Leapfrog Technology Pvt. Ltd.\",\n\"displayName\": \"Leapfrog Technology\",\n\"industry\": \"IT_SOFTWARE\",\n\"companySize\": \"500-1000\",\n\"website\": \"https://www.lftechnology.com\",\n\"description\": \"Leapfrog Technology is a leading software development company based in Kathmandu, Nepal. They specialize in custom software engineering, digital product design, web and mobile app development, and AI-driven solutions for global clients across healthcare, finance, and education sectors.\",\n\"contactName\": \"Nabin Shrestha\",\n\"contactEmail\": \"info@lftechnology.com\",\n\"contactPhone\": \"+977-1-553-3000\",\n\"address\": \"Pulchowk\",\n\"city\": \"Kathmandu\",\n\"state\": \"Bagmati\",\n\"country\": \"Nepal\",\n\"postalCode\": \"44600\",\n\"logoUrl\": \"https://www.lftechnology.com/logo.png\",\n\"coverImageUrl\": \"https://www.lftechnology.com/cover.jpg\",\n\"linkedinUrl\": \"https://linkedin.com/company/lftechnology\",\n\"twitterUrl\": \"https://twitter.com/lftechnology\",\n\"facebookUrl\": \"https://facebook.com/lftechnology\"\n}\n"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/recruiter/profile",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"recruiter",
+										"profile"
+									]
+								},
+								"description": "Create a new company profile for the recruiter"
+							},
+							"response": []
+						},
+						{
+							"name": "Update Company Profile",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{recruiterToken}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"companyName\": \"CloudFactory Nepal Pvt. Ltd.\",\n  \"displayName\": \"CloudFactory - AI Solutions\",\n  \"industry\": \"TECHNOLOGY\",\n  \"companySize\": \"1500-6000\",\n  \"website\": \"https://www.cloudfactory.ai\",\n  \"description\": \"CloudFactory is Nepal's leading AI and data annotation company with operations in Kathmandu and Pokhara. We provide high-quality training data for machine learning models, serving global clients in autonomous vehicles, healthcare AI, and e-commerce. Our team of 2000+ skilled professionals delivers exceptional data labeling services with 99.9% accuracy. We are proud to be one of Nepal's largest IT employers and a pioneer in the AI data services industry.\",\n  \"contactName\": \"Sita Sharma\",\n  \"contactEmail\": \"careers@cloudfactory.ai\",\n  \"contactPhone\": \"+977-1-9876543\",\n  \"address\": \"Trade Tower, Thapathali\",\n  \"city\": \"Kathmandu\",\n  \"state\": \"Bagmati\",\n  \"country\": \"Nepal\",\n  \"postalCode\": \"44601\",\n  \"logoUrl\": \"https://cdn.cloudfactory.com/new-logo.png\",\n  \"coverImageUrl\": \"https://cdn.cloudfactory.com/new-cover.jpg\",\n  \"linkedinUrl\": \"https://linkedin.com/company/cloudfactory-nepal\",\n  \"twitterUrl\": \"https://twitter.com/cloudfactory_np\",\n  \"facebookUrl\": \"https://facebook.com/cloudfactorynepal\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/recruiter/profile",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"recruiter",
+										"profile"
+									]
+								},
+								"description": "Update the recruiter's company profile"
+							},
+							"response": []
+						},
+						{
+							"name": "Get Company Profile",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{recruiterToken}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/recruiter/profile",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"recruiter",
+										"profile"
+									]
+								},
+								"description": "Get the recruiter's company profile"
+							},
+							"response": []
+						},
+						{
+							"name": "Get Profile Status",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{recruiterToken}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/recruiter/profile/status",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"recruiter",
+										"profile",
+										"status"
+									]
+								},
+								"description": "Get completion status of the company profile"
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Company Profile",
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{recruiterToken}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/recruiter/profile",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"recruiter",
+										"profile"
+									]
+								},
+								"description": "Delete (soft delete) the recruiter's company profile"
+							},
+							"response": []
+						},
+						{
+							"name": "Check Profile Completion",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{recruiterToken}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/recruiter/profile/complete",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"recruiter",
+										"profile",
+										"complete"
+									]
+								},
+								"description": "Check if the recruiter's company profile is complete"
+							},
+							"response": []
+						},
+						{
+							"name": "Check Job Posting Eligibility",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{recruiterToken}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/recruiter/profile/can-post-jobs",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"recruiter",
+										"profile",
+										"can-post-jobs"
+									]
+								},
+								"description": "Check if the recruiter can post jobs (profile complete and active)"
+							},
+							"response": []
+						}
+					],
+					"description": "APIs for recruiters to manage their company profiles"
+				},
+				{
+					"name": "Recruiter - Job Management",
+					"item": [
+						{
+							"name": "Create New Job",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{recruiterToken}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"title\": \"Senior Java Developer\",\n  \"jobType\": \"FULL_TIME\",\n  \"experienceLevel\": \"SENIOR\",\n  \"location\": \"Kathmandu, Nepal\",\n  \"overview\": \"We are looking for a Senior Java Developer to join our team. You will be responsible for developing high-quality applications, designing robust solutions, and mentoring junior developers. This is an exciting opportunity to work on cutting-edge technology projects for international clients.\",\n  \"responsibilities\": \"• Design, develop, and maintain Java applications\\n• Write clean, scalable, and testable code\\n• Collaborate with cross-functional teams to define and design new features\\n• Identify bottlenecks and bugs, and devise solutions\\n• Ensure software meets all requirements of quality, security, modifiability, extensibility\\n• Mentor junior developers and conduct code reviews\\n• Participate in the entire application lifecycle\\n• Troubleshoot and debug applications\",\n  \"requirements\": \"• Bachelor's degree in Computer Science or related field\\n• 5+ years of experience in Java development\\n• Strong knowledge of Spring Boot, Hibernate, and REST APIs\\n• Experience with microservices architecture\\n• Familiarity with databases (PostgreSQL, MySQL)\\n• Experience with Docker and Kubernetes\\n• Knowledge of Agile methodologies\\n• Excellent problem-solving skills\\n• Good communication skills\",\n  \"niceToHave\": \"• Experience with AWS or Google Cloud\\n• Knowledge of Kafka or RabbitMQ\\n• Experience with React or Angular\\n• DevOps experience\\n• CI/CD pipeline setup\",\n  \"benefits\": \"• Competitive salary package\\n• Health insurance\\n• Provident fund\\n• Festival bonus\\n• Flexible working hours\\n• Remote work options\\n• Learning and development opportunities\\n• Team building activities\\n• Modern office environment\",\n  \"applicationInstructions\": \"Please submit your resume and cover letter through our portal. Include links to your GitHub profile and any relevant projects. Shortlisted candidates will be contacted for an interview within 2 weeks.\",\n  \"salaryMin\": 100000,\n  \"salaryMax\": 180000,\n  \"salaryCurrency\": \"NPR\",\n  \"salaryType\": \"MONTHLY\",\n  \"isRemote\": true,\n  \"applicationDeadline\": \"2024-12-31T23:59:59\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/jobs",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"jobs"
+									]
+								},
+								"description": "Create a new job posting (RECRUITER role required)"
+							},
+							"response": []
+						},
+						{
+							"name": "Get Job by ID",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/jobs/{{jobId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"jobs",
+										"{{jobId}}"
+									]
+								},
+								"description": "Get job details by ID (public access)"
+							},
+							"response": []
+						},
+						{
+							"name": "Get My Jobs",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{recruiterToken}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/jobs/my-jobs?page=0&size=10",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"jobs",
+										"my-jobs"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "0"
+										},
+										{
+											"key": "size",
+											"value": "10"
+										}
+									]
+								},
+								"description": "Get all jobs posted by the recruiter (RECRUITER role required)"
+							},
+							"response": []
+						},
+						{
+							"name": "Get All Active Jobs",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/jobs?page=0&size=20",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"jobs"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "0"
+										},
+										{
+											"key": "size",
+											"value": "20"
+										}
+									]
+								},
+								"description": "Get all active jobs from verified companies (public access)"
+							},
+							"response": []
+						},
+						{
+							"name": "Update Job",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									},
+									{
+										"key": "Authorization",
+										"value": "Bearer {{recruiterToken}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"title\": \"Senior Java Developer - Updated\",\n  \"jobType\": \"FULL_TIME\",\n  \"experienceLevel\": \"SENIOR\",\n  \"location\": \"Kathmandu, Nepal (Hybrid)\",\n  \"overview\": \"Updated: We are looking for a Senior Java Developer to join our team. You will be responsible for developing high-quality applications, designing robust solutions, and mentoring junior developers. This is an exciting opportunity to work on cutting-edge technology projects for international clients.\",\n  \"responsibilities\": \"• Design, develop, and maintain Java applications\\n• Write clean, scalable, and testable code\\n• Collaborate with cross-functional teams\\n• Identify bottlenecks and bugs\\n• Ensure software meets quality standards\\n• Mentor junior developers\\n• Participate in application lifecycle\\n• Troubleshoot and debug applications\",\n  \"requirements\": \"• Bachelor's degree in Computer Science\\n• 5+ years of Java experience\\n• Strong knowledge of Spring Boot\\n• Experience with microservices\\n• Familiarity with databases\\n• Experience with Docker\\n• Knowledge of Agile\\n• Problem-solving skills\\n• Communication skills\",\n  \"salaryMax\": 200000,\n  \"isRemote\": false\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/jobs/{{jobId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"jobs",
+										"{{jobId}}"
+									]
+								},
+								"description": "Update job details (must be job owner)"
+							},
+							"response": []
+						},
+						{
+							"name": "Deactivate Job",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{recruiterToken}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/jobs/{{jobId}}/deactivate",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"jobs",
+										"{{jobId}}",
+										"deactivate"
+									]
+								},
+								"description": "Deactivate a job (make inactive, must be job owner)"
+							},
+							"response": []
+						},
+						{
+							"name": "Activate Job",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{recruiterToken}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/jobs/{{jobId}}/activate",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"jobs",
+										"{{jobId}}",
+										"activate"
+									]
+								},
+								"description": "Activate a deactivated job (must be job owner)"
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Job",
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{recruiterToken}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/jobs/{{jobId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"jobs",
+										"{{jobId}}"
+									]
+								},
+								"description": "Permanently delete a job (must be job owner)"
+							},
+							"response": []
+						}
+					],
+					"description": "APIs for recruiters to manage job postings"
+				}
+			]
+		},
+		{
+			"name": "Public",
+			"item": [
+				{
+					"name": "Public - Company Profiles",
+					"item": [
+						{
+							"name": "Get Company Profile (Public)",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/companies/{{companyId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"companies",
+										"{{companyId}}"
+									]
+								},
+								"description": "Get a company profile by ID (public access - only verified companies)"
+							},
+							"response": []
+						},
+						{
+							"name": "Get All Verified Companies",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/companies?page=0&size=20&sort=createdAt,desc",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"companies"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "0"
+										},
+										{
+											"key": "size",
+											"value": "20"
+										},
+										{
+											"key": "sort",
+											"value": "createdAt,desc"
+										}
+									]
+								},
+								"description": "Get all verified and active companies (paginated)"
+							},
+							"response": []
+						}
+					],
+					"description": "Public APIs for viewing company profiles"
+				}
+			]
+		},
+		{
+			"name": "Candidates",
+			"item": [
+				{
+					"name": "PROFILE",
+					"item": [
+						{
+							"name": "View Profile",
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{candidateToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/candidate/profile",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"candidate",
+										"profile"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Candidate Profile",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{candidateToken}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"firstName\": \"John\",\n    \"lastName\": \"Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"phone\": \"+9779801234567\",\n    \"dateOfBirth\": \"1990-01-15\",\n    \"gender\": \"MALE\",\n    \"address\": \"123 Main Street\",\n    \"city\": \"Kathmandu\",\n    \"country\": \"Nepal\",\n    \"profilePictureUrl\": \"https://example.com/profile.jpg\",\n    \"headline\": \"Senior Software Engineer with 8+ years experience\",\n    \"summary\": \"Experienced software engineer specializing in Java, Spring Boot, and microservices architecture. Passionate about building scalable applications and mentoring junior developers.\",\n    \"totalExperienceYears\": 8,\n    \"currentSalary\": 1500000,\n    \"expectedSalary\": 1800000,\n    \"salaryCurrency\": \"NPR\",\n    \"noticePeriod\": \"ONE_MONTH\",\n    \"education\": [\n        {\n            \"institution\": \"Tribhuvan University\",\n            \"degree\": \"Bachelor of Computer Engineering\",\n            \"fieldOfStudy\": \"Computer Science\",\n            \"grade\": \"3.8 GPA\",\n            \"description\": \"Graduated with honors\",\n            \"startDate\": \"2010-09-01\",\n            \"endDate\": \"2014-06-30\",\n            \"isCurrent\": false,\n            \"location\": \"Kathmandu, Nepal\"\n        },\n        {\n            \"institution\": \"Kathmandu University\",\n            \"degree\": \"Masters in Computer Science\",\n            \"fieldOfStudy\": \"Artificial Intelligence\",\n            \"grade\": \"3.9 GPA\",\n            \"description\": \"Specialized in Machine Learning\",\n            \"startDate\": \"2015-09-01\",\n            \"endDate\": \"2017-06-30\",\n            \"isCurrent\": false,\n            \"location\": \"Kathmandu, Nepal\"\n        }\n    ],\n    \"experience\": [\n        {\n            \"company\": \"Tech Solutions Inc.\",\n            \"position\": \"Senior Software Engineer\",\n            \"employmentType\": \"FULL_TIME\",\n            \"location\": \"Kathmandu\",\n            \"isCurrent\": true,\n            \"startDate\": \"2018-03-01\",\n            \"endDate\": null,\n            \"description\": \"Leading a team of 5 developers, designing microservices architecture\",\n            \"achievements\": \"Reduced API response time by 40%, implemented CI/CD pipeline\",\n            \"skillsUsed\": [\"Java\", \"Spring Boot\", \"Docker\", \"Kubernetes\", \"AWS\"]\n        },\n        {\n            \"company\": \"Digital Innovations\",\n            \"position\": \"Software Engineer\",\n            \"employmentType\": \"FULL_TIME\",\n            \"location\": \"Kathmandu\",\n            \"isCurrent\": false,\n            \"startDate\": \"2015-07-01\",\n            \"endDate\": \"2018-02-28\",\n            \"description\": \"Developed REST APIs and implemented new features\",\n            \"achievements\": \"Employee of the Year 2017\",\n            \"skillsUsed\": [\"Java\", \"Spring\", \"MySQL\", \"JavaScript\"]\n        }\n    ],\n    \"skills\": [\"Java\", \"Spring Boot\", \"Microservices\", \"Docker\", \"Kubernetes\", \"AWS\", \"MySQL\", \"REST APIs\"],\n    \"certifications\": [\n        {\n            \"name\": \"AWS Certified Solutions Architect\",\n            \"issuingOrganization\": \"Amazon Web Services\",\n            \"credentialId\": \"AWS-12345\",\n            \"credentialUrl\": \"https://aws.amazon.com/certification\",\n            \"issueDate\": \"2022-05-15\",\n            \"expirationDate\": \"2025-05-15\",\n            \"doesNotExpire\": false\n        }\n    ],\n    \"languages\": [\n        {\n            \"language\": \"English\",\n            \"proficiency\": \"FLUENT\"\n        },\n        {\n            \"language\": \"Nepali\",\n            \"proficiency\": \"NATIVE\"\n        }\n    ],\n    \"preferredJobTypes\": [\"FULL_TIME\", \"REMOTE\", \"HYBRID\"],\n    \"preferredLocations\": [\"Kathmandu\", \"Remote\", \"Lalitpur\"],\n    \"preferredIndustries\": [\"IT\", \"Software\", \"FinTech\"],\n    \"remotePreference\": true,\n    \"profileVisibility\": \"PUBLIC\",\n    \"isActivelyLooking\": true,\n    \"availableFrom\": \"2024-03-01\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/candidate/profile",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"candidate",
+										"profile"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Check Eligibility for JOBS",
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{candidateToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/candidate/profile/eligibility",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"candidate",
+										"profile",
+										"eligibility"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Upload Resume",
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{candidateToken}}"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"resumeUrl\": \"https://storage.example.com/resumes/john_doe_resume.pdf\",\n    \"fileName\": \"john_doe_resume_2024.pdf\",\n    \"originalFileName\": \"John_Doe_Resume.pdf\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/candidate/resume",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"candidate",
+										"resume"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Profile Visibility",
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{candidateToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/candidate/profile/visibility?visibility=PRIVATE",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"candidate",
+										"profile",
+										"visibility"
+									],
+									"query": [
+										{
+											"key": "visibility",
+											"value": "PRIVATE"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Active Status",
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{candidateToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/candidate/profile/status?isActivelyLooking=true",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"candidate",
+										"profile",
+										"status"
+									],
+									"query": [
+										{
+											"key": "isActivelyLooking",
+											"value": "true"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Check if Profile's complete",
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{candidateToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/candidate/profile/complete",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"candidate",
+										"profile",
+										"complete"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Check IF resume's uploaded ",
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{candidateToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/candidate/profile/resume-uploaded",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"candidate",
+										"profile",
+										"resume-uploaded"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Profile",
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{candidateToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/candidate/profile",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"candidate",
+										"profile"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Get Candidate Dashboard",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{candidateToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/candidate/dashboard",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"candidate",
+								"dashboard"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Apply For Job",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer $TOKEN"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"jobId\": 1,\n    \"coverLetter\": \"I am excited to apply for this position...\",\n    \"answers\": {\n      \"question1\": \"Answer 1\",\n      \"question2\": \"Answer 2\"\n    }\n  }",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8080/api/candidate/applications",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"candidate",
+								"applications"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "GET ALL APPLICATIONS",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer $TOKEN"
+							}
+						],
+						"url": {
+							"raw": "http://localhost:8080/api/candidate/applications",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"candidate",
+								"applications"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Application BY Id",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer $TOKEN"
+							}
+						],
+						"url": {
+							"raw": "http://localhost:8080/api/candidate/applications/1",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"candidate",
+								"applications",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "WithDraw Application",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{candidateToken}}"
+							}
+						],
+						"url": {
+							"raw": "http://localhost:8080/api/candidate/applications/1/withdraw",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"candidate",
+								"applications",
+								"1",
+								"withdraw"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Application",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer $TOKEN"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"jobId\": 1,\n    \"coverLetter\": \"Updated cover letter...\",\n    \"answers\": {\n      \"question1\": \"Updated answer\"\n    }\n  }",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8080/api/candidate/applications/1",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"candidate",
+								"applications",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Check If applied for Job",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer $TOKEN"
+							}
+						],
+						"url": {
+							"raw": "http://localhost:8080/api/candidate/applications/check/1",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"candidate",
+								"applications",
+								"check",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "REapply to a withdrawn ",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer YOUR_JWT_TOKEN"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8080/api/candidate/applications/{applicationId}/reapply",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"candidate",
+								"applications",
+								"{applicationId}",
+								"reapply"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Admin",
+			"item": [
+				{
+					"name": "Admin - Company Management",
+					"item": [
+						{
+							"name": "Get All Companies (Admin)",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/admin/companies?page=0&size=20&sort=createdAt,desc",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"admin",
+										"companies"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "0"
+										},
+										{
+											"key": "size",
+											"value": "20"
+										},
+										{
+											"key": "sort",
+											"value": "createdAt,desc"
+										}
+									]
+								},
+								"description": "Get all companies with pagination (admin only)"
+							},
+							"response": []
+						},
+						{
+							"name": "Get Company by ID (Admin)",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/admin/companies/{{companyId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"admin",
+										"companies",
+										"{{companyId}}"
+									]
+								},
+								"description": "Get any company profile by ID (admin only)"
+							},
+							"response": []
+						},
+						{
+							"name": "Verify Company Profile",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/admin/companies/{{companyId}}/verify",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"admin",
+										"companies",
+										"{{companyId}}",
+										"verify"
+									]
+								},
+								"description": "Verify a company profile (admin only)"
+							},
+							"response": []
+						},
+						{
+							"name": "Unverify Company Profile",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/admin/companies/{{companyId}}/unverify",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"admin",
+										"companies",
+										"{{companyId}}",
+										"unverify"
+									]
+								},
+								"description": "Remove verification from a company profile (admin only)"
+							},
+							"response": []
+						},
+						{
+							"name": "Activate Company Profile",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/admin/companies/{{companyId}}/activate",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"admin",
+										"companies",
+										"{{companyId}}",
+										"activate"
+									]
+								},
+								"description": "Activate a company profile (admin only)"
+							},
+							"response": []
+						},
+						{
+							"name": "Deactivate Company Profile",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{adminToken}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/admin/companies/{{companyId}}/deactivate",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"admin",
+										"companies",
+										"{{companyId}}",
+										"deactivate"
+									]
+								},
+								"description": "Deactivate a company profile (admin only)"
+							},
+							"response": []
+						}
+					],
+					"description": "Admin APIs for managing company profiles"
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Set default headers for all requests",
+					"pm.request.headers.upsert({",
+					"    key: 'Content-Type',",
+					"    value: 'application/json'",
+					"});",
+					"",
+					"// Add timestamp for tracking",
+					"const timestamp = new Date().toISOString();",
+					"pm.variables.set(\"timestamp\", timestamp);",
+					"",
+					"// Log request info",
+					"console.log(`Request: ${pm.request.method} ${pm.request.url}`);"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Test to automatically capture tokens from login responses",
+					"if (pm.response.code === 200) {",
+					"    const response = pm.response.json();",
+					"    ",
+					"    if (response.data && response.data.accessToken) {",
+					"        // Store access token based on the endpoint",
+					"        const url = pm.request.url.toString();",
+					"        ",
+					"        if (url.includes('/candidate/login')) {",
+					"            pm.collectionVariables.set(\"candidateToken\", response.data.accessToken);",
+					"            pm.collectionVariables.set(\"refreshToken\", response.data.refreshToken);",
+					"            console.log(\"Candidate token stored\");",
+					"        }",
+					"        else if (url.includes('/recruiter/login')) {",
+					"            pm.collectionVariables.set(\"recruiterToken\", response.data.accessToken);",
+					"            pm.collectionVariables.set(\"refreshToken\", response.data.refreshToken);",
+					"            console.log(\"Recruiter token stored\");",
+					"        }",
+					"        else if (url.includes('/admin/login')) {",
+					"            pm.collectionVariables.set(\"adminToken\", response.data.accessToken);",
+					"            pm.collectionVariables.set(\"refreshToken\", response.data.refreshToken);",
+					"            console.log(\"Admin token stored\");",
+					"        }",
+					"        else if (url.includes('/refresh-token')) {",
+					"            pm.collectionVariables.set(pm.variables.get(\"tokenType\") + \"Token\", response.data.accessToken);",
+					"            console.log(\"Token refreshed and stored\");",
+					"        }",
+					"    }",
+					"    ",
+					"    // Store verification OTP for testing",
+					"    if (response.message && response.message.includes(\"OTP\")) {",
+					"        console.log(\"OTP sent - check your email or logs\");",
+					"    }",
+					"}",
+					"",
+					"// Basic response validation",
+					"pm.test(\"Status code is 200\", function () {",
+					"    pm.response.to.have.status(200);",
+					"});",
+					"",
+					"pm.test(\"Response has success structure\", function () {",
+					"    const jsonData = pm.response.json();",
+					"    pm.expect(jsonData).to.have.property('success', true);",
+					"    pm.expect(jsonData).to.have.property('message');",
+					"});"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "adminEmail",
+			"value": "admin@neptalent.com",
+			"type": "string"
+		},
+		{
+			"key": "adminPassword",
+			"value": "AdminPass123",
+			"type": "string"
+		},
+		{
+			"key": "recruiterEmail",
+			"value": "recruiter@company.com",
+			"type": "string"
+		},
+		{
+			"key": "recruiterPassword",
+			"value": "RecruiterPass123",
+			"type": "string"
+		},
+		{
+			"key": "candidateEmail",
+			"value": "candidate@example.com",
+			"type": "string"
+		},
+		{
+			"key": "candidatePassword",
+			"value": "CandidatePass123",
+			"type": "string"
+		},
+		{
+			"key": "newUserEmail",
+			"value": "newuser@test.com",
+			"type": "string"
+		},
+		{
+			"key": "adminToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "recruiterToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "candidateToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refreshToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "verificationOtp",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "passwordResetOtp",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "profileId",
+			"value": ""
+		}
+	]
+}
