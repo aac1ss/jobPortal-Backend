@@ -118,4 +118,6 @@ public class JobController {
         jobService.deleteJob(jobId, userPrincipal.getId());
         return ResponseEntity.ok(GenericResponse.success("Job deleted successfully"));
     }
+
+
 }

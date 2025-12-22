@@ -23,4 +23,11 @@ public interface JobService {
     void activateJob(Long jobId, Long recruiterId);
 
     void deleteJob(Long jobId, Long recruiterId);
+
+
+    Page<JobResponse> searchActiveJobs(String keyword, String location, String jobType,
+                                       String experienceLevel, Boolean isRemote, Pageable pageable);
+    Page<JobResponse> getActiveJobsByCompany(Long companyId, Pageable pageable);
+    Page<JobResponse> getFeaturedJobs(Pageable pageable);
+
 }

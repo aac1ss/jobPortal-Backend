@@ -69,4 +69,49 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication, 
                                                        @Param("jobId") Long jobId);
 
     boolean existsByJobIdAndCandidateIdAndIsWithdrawnFalse(Long jobId, Long candidateId);
+
+    @Query("SELECT ja FROM JobApplication ja " +
+            "WHERE ja.job.company.recruiter.id = :recruiterId " +
+            "AND ja.job.id = :jobId " +
+            "ORDER BY ja.appliedAt DESC")
+    List<JobApplication> findByRecruiterIdAndJobId(@Param("recruiterId") Long recruiterId,
+                                                   @Param("jobId") Long jobId);
+
+    @Query("SELECT ja FROM JobApplication ja " +
+            "WHERE ja.job.company.recruiter.id = :recruiterId " +
+            "AND ja.isWithdrawn = false " +
+            "ORDER BY ja.appliedAt DESC")
+    List<JobApplication> findByRecruiterId(@Param("recruiterId") Long recruiterId);
+
+    @Query("SELECT COUNT(ja) FROM JobApplication ja " +
+            "WHERE ja.job.company.recruiter.id = :recruiterId " +
+            "AND ja.isWithdrawn = false")
+    Integer countByRecruiterId(@Param("recruiterId") Long recruiterId);
+
+    @Query("SELECT COUNT(ja) FROM JobApplication ja " +
+            "WHERE ja.job.company.recruiter.id = :recruiterId " +
+            "AND ja.status = :status " +
+            "AND ja.isWithdrawn = false")
+    Integer countByRecruiterIdAndStatus(@Param("recruiterId") Long recruiterId,
+                                        @Param("status") ApplicationStatus status);
+
+    @Query("SELECT COUNT(ja) FROM JobApplication ja " +
+            "WHERE ja.job.company.recruiter.id = :recruiterId " +
+            "AND ja.isWithdrawn = false " +
+            "AND MONTH(ja.appliedAt) = MONTH(CURRENT_DATE) " +
+            "AND YEAR(ja.appliedAt) = YEAR(CURRENT_DATE)")
+    Integer countApplicationsThisMonth(@Param("recruiterId") Long recruiterId);
+
+    @Query("SELECT ja FROM JobApplication ja " +
+            "WHERE ja.job.company.recruiter.id = :recruiterId " +
+            "AND ja.status = :status " +
+            "AND ja.isWithdrawn = false " +
+            "ORDER BY ja.appliedAt DESC")
+    List<JobApplication> findByRecruiterIdAndStatus(@Param("recruiterId") Long recruiterId,
+                                                    @Param("status") ApplicationStatus status);
+
+    @Query("SELECT COUNT(DISTINCT ja.job.id) FROM JobApplication ja " +
+            "WHERE ja.job.company.recruiter.id = :recruiterId " +
+            "AND ja.isWithdrawn = false")
+    Integer countJobsWithApplications(@Param("recruiterId") Long recruiterId);
 }

@@ -116,7 +116,7 @@ public class SecurityConfig {
                         // Company Profile Endpoints
                         .requestMatchers("/api/recruiter/profile/**").hasAnyRole("RECRUITER", "ADMIN")
                         .requestMatchers("/api/admin/companies/**").hasRole("ADMIN")
-                        .requestMatchers("/api/companies/**").permitAll()  // Public access
+                        .requestMatchers("/api/companies/**","api/public/jobs/**").permitAll()  // Public access
 
                         // ✅ Actuator endpoints
                         .requestMatchers(

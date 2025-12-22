@@ -252,6 +252,44 @@ public class JobServiceImpl implements JobService {
         return job.getCompany().getRecruiter().getId().equals(recruiterId);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Page<JobResponse> searchActiveJobs(String keyword, String location, String jobType,
+                                              String experienceLevel, Boolean isRemote, Pageable pageable) {
+        log.debug("Searching active jobs with filters");
+
+        if (keyword != null && !keyword.trim().isEmpty()) {
+
+            return jobRepository.searchActiveJobsByKeyword(keyword.trim(), location, jobType,
+                            experienceLevel, isRemote, pageable)
+                    .map(this::mapToResponse);
+        } else {
+            return jobRepository.findActiveJobsWithFilters(location, jobType,
+                            experienceLevel, isRemote, pageable)
+                    .map(this::mapToResponse);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<JobResponse> getActiveJobsByCompany(Long companyId, Pageable pageable) {
+        log.debug("Getting active jobs for company ID: {}", companyId);
+
+        return jobRepository.findByCompanyIdAndIsActiveAndCompanyIsActiveAndCompanyIsVerified(
+                        companyId, true, true, true, pageable)
+                .map(this::mapToResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<JobResponse> getFeaturedJobs(Pageable pageable) {
+        log.debug("Getting featured jobs");
+
+        return jobRepository.findByIsFeaturedAndIsActiveAndCompanyIsActiveAndCompanyIsVerified(
+                        true, true, true, true, pageable)
+                .map(this::mapToResponse);
+    }
+
     // Map Job entity to JobResponse DTO
     private JobResponse mapToResponse(Job job) {
         JobResponse response = new JobResponse();

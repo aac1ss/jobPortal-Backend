@@ -34,5 +34,55 @@ public interface JobRepository extends JpaRepository<Job, Long> {
 
     @Query("SELECT COUNT(j) FROM Job j WHERE j.isActive = true")
     Long countActiveJobs();
+    List<Job> findByCompanyRecruiterId(Long recruiterId);
+
+    @Query("SELECT j FROM Job j WHERE j.company.recruiter.id = :recruiterId AND j.isActive = true")
+    List<Job> findActiveJobsByRecruiterId(@Param("recruiterId") Long recruiterId);
+
+    @Query("SELECT COUNT(j) FROM Job j WHERE j.company.recruiter.id = :recruiterId")
+    Integer countJobsByRecruiterId(@Param("recruiterId") Long recruiterId);
+
+    @Query("SELECT j FROM Job j WHERE j.company.recruiter.id = :recruiterId ORDER BY j.createdAt DESC")
+    Page<Job> findByRecruiterId(@Param("recruiterId") Long recruiterId, Pageable pageable);
+
+    // For search
+    @Query("SELECT j FROM Job j WHERE " +
+            "j.isActive = true AND " +
+            "j.company.isActive = true AND " +
+            "j.company.isVerified = true AND " +
+            "(:keyword IS NULL OR j.title LIKE %:keyword% OR j.company.companyName LIKE %:keyword%) AND " +
+            "(:location IS NULL OR j.location LIKE %:location%) AND " +
+            "(:jobType IS NULL OR j.jobType = :jobType) AND " +
+            "(:experienceLevel IS NULL OR j.experienceLevel = :experienceLevel) AND " +
+            "(:isRemote IS NULL OR j.isRemote = :isRemote)")
+    Page<Job> searchActiveJobsByKeyword(
+            @Param("keyword") String keyword,
+            @Param("location") String location,
+            @Param("jobType") String jobType,
+            @Param("experienceLevel") String experienceLevel,
+            @Param("isRemote") Boolean isRemote,
+            Pageable pageable);
+
+    @Query("SELECT j FROM Job j WHERE " +
+            "j.isActive = true AND " +
+            "j.company.isActive = true AND " +
+            "j.company.isVerified = true AND " +
+            "(:location IS NULL OR j.location LIKE %:location%) AND " +
+            "(:jobType IS NULL OR j.jobType = :jobType) AND " +
+            "(:experienceLevel IS NULL OR j.experienceLevel = :experienceLevel) AND " +
+            "(:isRemote IS NULL OR j.isRemote = :isRemote)")
+    Page<Job> findActiveJobsWithFilters(
+            @Param("location") String location,
+            @Param("jobType") String jobType,
+            @Param("experienceLevel") String experienceLevel,
+            @Param("isRemote") Boolean isRemote,
+            Pageable pageable);
+
+    Page<Job> findByCompanyIdAndIsActiveAndCompanyIsActiveAndCompanyIsVerified(
+            Long companyId, boolean active, boolean companyActive, boolean companyVerified, Pageable pageable);
+
+    Page<Job> findByIsFeaturedAndIsActiveAndCompanyIsActiveAndCompanyIsVerified(
+            boolean featured, boolean active, boolean companyActive, boolean companyVerified, Pageable pageable);
 
 }
+
