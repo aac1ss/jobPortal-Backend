@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -114,4 +115,12 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication, 
             "WHERE ja.job.company.recruiter.id = :recruiterId " +
             "AND ja.isWithdrawn = false")
     Integer countJobsWithApplications(@Param("recruiterId") Long recruiterId);
+
+    @Query("SELECT COUNT(ja) FROM JobApplication ja " +
+            "WHERE ja.job.id = :jobId AND ja.appliedAt >= :sinceDate")
+    Long countByJobIdAndAppliedAtAfter(@Param("jobId") Long jobId,
+                                       @Param("sinceDate") LocalDateTime sinceDate);
+
+    // Check if candidate has applied to job
+    boolean existsByCandidateIdAndJobId(Long candidateId, Long jobId);
 }

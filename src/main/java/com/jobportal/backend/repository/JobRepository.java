@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -83,6 +84,23 @@ public interface JobRepository extends JpaRepository<Job, Long> {
 
     Page<Job> findByIsFeaturedAndIsActiveAndCompanyIsActiveAndCompanyIsVerified(
             boolean featured, boolean active, boolean companyActive, boolean companyVerified, Pageable pageable);
+
+    @Query("SELECT j.id, COUNT(ja.id) as applicationCount " +
+            "FROM Job j " +
+            "LEFT JOIN JobApplication ja ON ja.job.id = j.id AND ja.appliedAt >= :sinceDate " +
+            "WHERE j.isActive = true " +
+            "AND j.company.isActive = true " +
+            "AND j.company.isVerified = true " +
+            "AND (j.applicationDeadline IS NULL OR j.applicationDeadline > CURRENT_TIMESTAMP) " +
+            "GROUP BY j.id " +
+            "ORDER BY applicationCount DESC")
+    List<Object[]> findTrendingJobsData(@Param("sinceDate") LocalDateTime sinceDate);
+
+    // Check if candidate has applied
+    @Query("SELECT COUNT(ja) > 0 FROM JobApplication ja " +
+            "WHERE ja.candidate.id = :candidateId AND ja.job.id = :jobId")
+    boolean existsByCandidateIdAndJobId(@Param("candidateId") Long candidateId,
+                                        @Param("jobId") Long jobId);
 
 }
 
