@@ -123,4 +123,12 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication, 
 
     // Check if candidate has applied to job
     boolean existsByCandidateIdAndJobId(Long candidateId, Long jobId);
+
+    // Add to JobApplicationRepository
+    @Query("SELECT CASE WHEN COUNT(j) > 0 THEN true ELSE false END " +
+            "FROM JobApplication j " +
+            "WHERE j.job.company.recruiter.id = :recruiterId " +
+            "AND j.candidate.id = :candidateId")
+    boolean existsByRecruiterIdAndCandidateId(@Param("recruiterId") Long recruiterId,
+                                              @Param("candidateId") Long candidateId);
 }

@@ -4,6 +4,7 @@ import com.jobportal.backend.dto.company.request.UpdateApplicationStatusRequest;
 import com.jobportal.backend.dto.company.response.JobApplicationDetailResponse;
 import com.jobportal.backend.dto.company.response.JobWithApplicationsResponse;
 import com.jobportal.backend.dto.company.response.RecruiterDashboardResponse;
+import com.jobportal.backend.dto.recruiter.response.CandidateProfileViewResponse;
 import com.jobportal.backend.enums.ApplicationStatus;
 
 import java.util.List;
@@ -31,4 +32,6 @@ public interface RecruiterService {
             Long jobId,
             ApplicationStatus status,
             String keyword);
+
+    CandidateProfileViewResponse viewCandidateProfile(Long recruiterId, Long candidateId);
 }

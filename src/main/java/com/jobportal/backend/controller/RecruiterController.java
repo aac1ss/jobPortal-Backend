@@ -5,11 +5,14 @@ import com.jobportal.backend.dto.company.request.UpdateApplicationStatusRequest;
 import com.jobportal.backend.dto.company.response.JobApplicationDetailResponse;
 import com.jobportal.backend.dto.company.response.JobWithApplicationsResponse;
 import com.jobportal.backend.dto.company.response.RecruiterDashboardResponse;
+import com.jobportal.backend.dto.recruiter.response.CandidateProfileViewResponse;
 import com.jobportal.backend.enums.ApplicationStatus;
 import com.jobportal.backend.security.UserPrincipal;
 import com.jobportal.backend.service.RecruiterService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -157,5 +160,27 @@ public class RecruiterController {
                 .collect(java.util.stream.Collectors.toList());
 
         return ResponseEntity.ok(GenericResponse.success(filtered));
+    }
+
+    // Add to RecruiterController.java
+
+    @GetMapping("/candidates/{candidateId}/profile")
+    @PreAuthorize("hasRole('RECRUITER')")
+    @Operation(summary = "View candidate profile for recruitment purposes")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Candidate profile retrieved"),
+            @ApiResponse(responseCode = "403", description = "Not authorized to view this profile"),
+            @ApiResponse(responseCode = "404", description = "Candidate not found")
+    })
+    public ResponseEntity<GenericResponse<CandidateProfileViewResponse>> viewCandidateProfile(
+            @PathVariable Long candidateId,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+
+        log.info("Recruiter {} viewing candidate profile {}", userPrincipal.getUsername(), candidateId);
+
+        CandidateProfileViewResponse profile = recruiterService.viewCandidateProfile(
+                userPrincipal.getId(), candidateId);
+
+        return ResponseEntity.ok(GenericResponse.success(profile));
     }
 }
