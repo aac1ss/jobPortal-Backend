@@ -155,7 +155,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         // Update user password
         user.setPassword(passwordEncoder.encode(newPassword));
         user.setPasswordUpdatedAt(LocalDateTime.now());
-        user.unlockAccount(); // Unlock account if it was locked
+        user.unlockAccount();
         userRepository.save(user);
 
         resetToken.setUsed(true);

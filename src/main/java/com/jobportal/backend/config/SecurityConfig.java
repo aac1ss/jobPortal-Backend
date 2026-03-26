@@ -59,7 +59,7 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(List.of(
                 "http://localhost:3000",
-                "http://localhost:5173",
+                "http://localhost:5174",
                 "http://localhost:8080",
                 "https://neptalent.up.railway.app"
         ));
@@ -116,7 +116,7 @@ public class SecurityConfig {
                         // Company Profile Endpoints
                         .requestMatchers("/api/recruiter/profile/**").hasAnyRole("RECRUITER", "ADMIN")
                         .requestMatchers("/api/admin/companies/**").hasRole("ADMIN")
-                        .requestMatchers("/api/companies/**").permitAll()  // Public access
+                        .requestMatchers("/api/companies/**","api/public/jobs/**").permitAll()  // Public access
 
                         // ✅ Actuator endpoints
                         .requestMatchers(

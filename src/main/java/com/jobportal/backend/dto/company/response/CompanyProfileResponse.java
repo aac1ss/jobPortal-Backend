@@ -1,6 +1,5 @@
-package com.jobportal.backend.dto.security.response;
+package com.jobportal.backend.dto.company.response;
 
-import com.jobportal.backend.enums.IndustryEnum;
 import lombok.Data;
 
 import java.time.LocalDateTime;

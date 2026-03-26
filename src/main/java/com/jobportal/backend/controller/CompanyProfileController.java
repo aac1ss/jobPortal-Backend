@@ -1,9 +1,9 @@
 package com.jobportal.backend.controller;
 
 import com.jobportal.backend.dto.GenericResponse;
-import com.jobportal.backend.dto.security.request.CompanyProfileRequest;
-import com.jobportal.backend.dto.security.response.CompanyProfileResponse;
-import com.jobportal.backend.dto.security.response.CompanyProfileStatusResponse;
+import com.jobportal.backend.dto.company.request.CompanyProfileRequest;
+import com.jobportal.backend.dto.company.response.CompanyProfileResponse;
+import com.jobportal.backend.dto.company.response.CompanyProfileStatusResponse;
 import com.jobportal.backend.security.UserPrincipal;
 import com.jobportal.backend.service.CompanyProfileService;
 import io.swagger.v3.oas.annotations.Operation;

@@ -1,0 +1,153 @@
+package com.jobportal.backend.service.impl;
+
+import com.jobportal.backend.entity.CandidateProfile;
+import com.jobportal.backend.entity.Job;
+import com.jobportal.backend.service.*;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class MatchScoreServiceImpl implements MatchScoreService {
+
+    private final SkillMatchService skillMatchService;
+    private final ExperienceMatchService experienceMatchService;
+    private final LocationMatchService locationMatchService;
+    private final JobTypeMatchService jobTypeMatchService;
+
+    @Override
+    public int calculateMatchScore(CandidateProfile candidate, Job job) {
+        int totalScore = 0;
+
+        try {
+            // 1. Skill Match (40 points max)
+            List<String> candidateSkills = candidate.getSkillsList();
+            List<String> jobSkills = job.getRequiredSkillsList();
+            int skillScore = skillMatchService.calculateSkillMatchScore(candidateSkills, jobSkills);
+            totalScore += skillScore;
+
+            // 2. Experience Match (30 points max)
+            Float candidateExperience = Float.valueOf(candidate.getTotalExperienceYears());
+            int experienceScore = experienceMatchService.calculateExperienceMatchScore(
+                    candidateExperience, job.getExperienceLevel()
+            );
+            totalScore += experienceScore;
+
+            // 3. Location Match (20 points max)
+            int locationScore = locationMatchService.calculateLocationMatchScore(candidate, job);
+            totalScore += locationScore;
+
+            // 4. Job Type Match (10 points max)
+            int jobTypeScore = jobTypeMatchService.calculateJobTypeMatchScore(candidate, job);
+            totalScore += jobTypeScore;
+
+        } catch (Exception e) {
+            log.error("Error calculating match score for candidate {} and job {}",
+                    candidate.getId(), job.getId(), e);
+            // Return a safe default score
+            return Math.min(totalScore, 100);
+        }
+
+        // Ensure score is between 0 and 100
+        return Math.min(Math.max(totalScore, 0), 100);
+    }
+
+    @Override
+    public String generateMatchNotes(CandidateProfile candidate, Job job, int score) {
+        List<String> notes = new ArrayList<>();
+
+        // Overall match assessment
+        if (score >= 80) {
+            notes.add("Excellent match! Your skills and experience align perfectly with this role.");
+        } else if (score >= 60) {
+            notes.add("Good match. You have relevant skills and experience for this position.");
+        } else if (score >= 40) {
+            notes.add("Moderate match. Consider highlighting your transferable skills.");
+        } else {
+            notes.add("Basic match. The role may require additional skills or experience.");
+        }
+
+        // Skill-specific notes
+        List<String> matchingSkills = skillMatchService.findMatchingSkills(
+                candidate.getSkillsList(), job.getRequiredSkillsList()
+        );
+
+        if (!matchingSkills.isEmpty()) {
+            notes.add("Matching skills: " + String.join(", ", matchingSkills));
+        } else {
+            notes.add("No direct skill matches found.");
+        }
+
+        // Experience note
+        Float candidateExp = Float.valueOf(candidate.getTotalExperienceYears());
+        if (candidateExp != null) {
+            String experienceNote = String.format(
+                    "Your experience (%s years) %s the required level (%s).",
+                    candidateExp,
+                    isExperienceSuitable(candidateExp, job.getExperienceLevel()) ? "matches" : "may not fully match",
+                    job.getExperienceLevel().name()
+            );
+            notes.add(experienceNote);
+        }
+
+        // Location note
+        if (job.isRemote()) {
+            notes.add("This is a remote position.");
+        } else if (candidate.getPreferredLocationsList() != null &&
+                !candidate.getPreferredLocationsList().isEmpty()) {
+            notes.add("Check if the location matches your preferences.");
+        }
+
+        return String.join(" ", notes);
+    }
+
+    private boolean isExperienceSuitable(Float candidateExp, com.jobportal.backend.enums.ExperienceLevel requiredLevel) {
+        if (candidateExp == null || requiredLevel == null) return true;
+
+        double years = candidateExp;
+        switch (requiredLevel) {
+            case INTERN: return years <= 2;
+            case JUNIOR_LEVEL: return years <= 4;
+            case MID_LEVEL: return years >= 2 && years <= 7;
+            case SENIOR_LEVEL: return years >= 3;
+            case EXECUTIVE: return years >= 5;
+            default: return true;
+        }
+    }
+
+    // Additional helper method for batch processing
+    public List<JobMatchResult> findBestMatchingJobs(CandidateProfile candidate, List<Job> jobs, int limit) {
+        return jobs.stream()
+                .map(job -> {
+                    int score = calculateMatchScore(candidate, job);
+                    String notes = generateMatchNotes(candidate, job, score);
+                    return new JobMatchResult(job, score, notes);
+                })
+                .sorted((a, b) -> b.getScore() - a.getScore())
+                .limit(limit)
+                .collect(Collectors.toList());
+    }
+
+    // DTO for job match results
+    public static class JobMatchResult {
+        private final Job job;
+        private final int score;
+        private final String notes;
+
+        public JobMatchResult(Job job, int score, String notes) {
+            this.job = job;
+            this.score = score;
+            this.notes = notes;
+        }
+
+        public Job getJob() { return job; }
+        public int getScore() { return score; }
+        public String getNotes() { return notes; }
+    }
+}

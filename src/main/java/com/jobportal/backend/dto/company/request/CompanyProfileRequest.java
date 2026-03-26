@@ -1,4 +1,4 @@
-package com.jobportal.backend.dto.security.request;
+package com.jobportal.backend.dto.company.request;
 
 import com.jobportal.backend.enums.IndustryEnum;
 import jakarta.validation.constraints.Email;

@@ -27,7 +27,8 @@ error:
 
 jwt:
   secret: 5ZoPtw1tCYBcri4AvOTvu8OcCgWo7iKU/HsJzMesr9M=
-  expiration: 900000
+#  expiration: 900000 #15 minutes
+  expiration: 86400000 #1 day
   refresh:
     expiration: 2592000000
 
