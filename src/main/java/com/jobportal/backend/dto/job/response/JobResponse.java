@@ -8,6 +8,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 public class JobResponse {
@@ -37,6 +38,8 @@ public class JobResponse {
     private String niceToHave;
     private String benefits;
     private String applicationInstructions;
+
+    private List<String> requiredSkills;
 
     // Company info
     private Long companyId;

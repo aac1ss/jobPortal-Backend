@@ -11,6 +11,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 public class UpdateJobRequest {
@@ -57,4 +58,7 @@ public class UpdateJobRequest {
     private LocalDateTime applicationDeadline;
 
     private Boolean isActive;
+
+    @Size(max = 20, message = "Maximum 20 skills allowed")
+    private List<String> skills;
 }
