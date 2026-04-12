@@ -40,7 +40,7 @@ public class JobServiceImpl implements JobService {
         CompanyProfile company = companyProfileRepository.findByRecruiterId(recruiterId)
                 .orElseThrow(() -> new ResourceNotFoundException("Company profile not found"));
 
-        // Check if company can post jobs (active, verified, and complete)
+        // Check if company can post jobs
         if (!company.isProfileComplete()) {
             throw new ValidationException("Company profile must be complete to post jobs");
         }
@@ -73,6 +73,12 @@ public class JobServiceImpl implements JobService {
         job.setApplicationDeadline(request.getApplicationDeadline());
         job.setCompany(company);
         job.setPublishedAt(LocalDateTime.now());
+
+        // SET SKILLS - Using the helper method
+        if (request.getSkills() != null && !request.getSkills().isEmpty()) {
+            job.setRequiredSkillsList(request.getSkills());
+            log.info("Added {} required skills to job", request.getSkills().size());
+        }
 
         Job savedJob = jobRepository.save(job);
 
@@ -168,6 +174,12 @@ public class JobServiceImpl implements JobService {
         if (request.getSalaryType() != null) job.setSalaryType(request.getSalaryType());
         if (request.getIsRemote() != null) job.setRemote(request.getIsRemote());
         if (request.getApplicationDeadline() != null) job.setApplicationDeadline(request.getApplicationDeadline());
+
+        // UPDATE SKILLS
+        if (request.getSkills() != null) {
+            job.setRequiredSkillsList(request.getSkills());
+            log.info("Updated skills for job {}: {} skills", jobId, request.getSkills().size());
+        }
 
         // Update job description if provided
         if (job.getJobDescription() != null) {
@@ -291,6 +303,7 @@ public class JobServiceImpl implements JobService {
     }
 
     // Map Job entity to JobResponse DTO
+    // Update mapToResponse to include skills
     private JobResponse mapToResponse(Job job) {
         JobResponse response = new JobResponse();
         response.setId(job.getId());
@@ -310,6 +323,9 @@ public class JobServiceImpl implements JobService {
         response.setCreatedAt(job.getCreatedAt());
         response.setUpdatedAt(job.getUpdatedAt());
         response.setPublishedAt(job.getPublishedAt());
+
+        // ADD SKILLS TO RESPONSE
+        response.setRequiredSkills(job.getRequiredSkillsList());
 
         // Set job description
         if (job.getJobDescription() != null) {

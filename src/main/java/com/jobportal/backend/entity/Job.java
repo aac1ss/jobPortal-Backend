@@ -92,12 +92,27 @@ public class Job {
     @OneToMany(mappedBy = "job", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<JobApplication> jobApplications = new ArrayList<>();
 
-    // Helper Methods
     public List<String> getRequiredSkillsList() {
         if (requiredSkills == null || requiredSkills.trim().isEmpty()) {
             return new ArrayList<>();
         }
         return Arrays.asList(requiredSkills.split("\\s*,\\s*"));
+    }
+
+    public void setRequiredSkillsList(List<String> skillList) {
+        if (skillList == null || skillList.isEmpty()) {
+            this.requiredSkills = "";
+        } else {
+            this.requiredSkills = String.join(",", skillList);
+        }
+    }
+
+    public void addRequiredSkill(String skill) {
+        List<String> currentSkills = getRequiredSkillsList();
+        if (!currentSkills.contains(skill)) {
+            currentSkills.add(skill);
+            setRequiredSkillsList(currentSkills);
+        }
     }
 
     public boolean isApplicationOpen() {

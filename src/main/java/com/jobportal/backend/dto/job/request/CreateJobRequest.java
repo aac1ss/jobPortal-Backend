@@ -8,6 +8,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 public class CreateJobRequest {
@@ -59,4 +60,7 @@ public class CreateJobRequest {
 
     @Future(message = "Application deadline must be in the future")
     private LocalDateTime applicationDeadline;
+
+    @Size(max = 20, message = "Maximum 20 skills allowed")
+    private List<String> skills;
 }
