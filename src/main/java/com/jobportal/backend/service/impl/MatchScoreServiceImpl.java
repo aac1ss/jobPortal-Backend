@@ -59,49 +59,119 @@ public class MatchScoreServiceImpl implements MatchScoreService {
     }
 
     @Override
+//    public String generateMatchNotes(CandidateProfile candidate, Job job, int score) {
+//        List<String> notes = new ArrayList<>();
+//
+//        // Overall match assessment
+//        if (score >= 80) {
+//            notes.add("Excellent match! Your skills and experience align perfectly with this role.");
+//        } else if (score >= 60) {
+//            notes.add("Good match. You have relevant skills and experience for this position.");
+//        } else if (score >= 40) {
+//            notes.add("Moderate match. Consider highlighting your transferable skills.");
+//        } else {
+//            notes.add("Basic match. The role may require additional skills or experience.");
+//        }
+//
+//        // Skill-specific notes
+//        List<String> matchingSkills = skillMatchService.findMatchingSkills(
+//                candidate.getSkillsList(), job.getRequiredSkillsList()
+//        );
+//
+//        if (!matchingSkills.isEmpty()) {
+//            notes.add("Matching skills: " + String.join(", ", matchingSkills));
+//        } else {
+//            notes.add("No direct skill matches found.");
+//        }
+//
+//        // Experience note
+//        Float candidateExp = Float.valueOf(candidate.getTotalExperienceYears());
+//        if (candidateExp != null) {
+//            String experienceNote = String.format(
+//                    "Your experience (%s years) %s the required level (%s).",
+//                    candidateExp,
+//                    isExperienceSuitable(candidateExp, job.getExperienceLevel()) ? "matches" : "may not fully match",
+//                    job.getExperienceLevel().name()
+//            );
+//            notes.add(experienceNote);
+//        }
+//
+//        // Location note
+//        if (job.isRemote()) {
+//            notes.add("This is a remote position.");
+//        } else if (candidate.getPreferredLocationsList() != null &&
+//                !candidate.getPreferredLocationsList().isEmpty()) {
+//            notes.add("Check if the location matches your preferences.");
+//        }
+//
+//        return String.join(" ", notes);
+//    }
     public String generateMatchNotes(CandidateProfile candidate, Job job, int score) {
         List<String> notes = new ArrayList<>();
 
-        // Overall match assessment
+        // Overall assessment - recruiter facing
         if (score >= 80) {
-            notes.add("Excellent match! Your skills and experience align perfectly with this role.");
+            notes.add("Excellent fit. This candidate aligns strongly with the role requirements.");
         } else if (score >= 60) {
-            notes.add("Good match. You have relevant skills and experience for this position.");
+            notes.add("Good fit. This candidate shows strong relevance for the position.");
         } else if (score >= 40) {
-            notes.add("Moderate match. Consider highlighting your transferable skills.");
+            notes.add("Moderate fit. The candidate matches some key requirements but may need review.");
         } else {
-            notes.add("Basic match. The role may require additional skills or experience.");
+            notes.add("Basic fit. The candidate may require additional skills or experience for this role.");
         }
 
-        // Skill-specific notes
+        // Skills note
         List<String> matchingSkills = skillMatchService.findMatchingSkills(
                 candidate.getSkillsList(), job.getRequiredSkillsList()
         );
 
         if (!matchingSkills.isEmpty()) {
-            notes.add("Matching skills: " + String.join(", ", matchingSkills));
+            notes.add("Candidate matching skills: " + String.join(", ", matchingSkills) + ".");
         } else {
-            notes.add("No direct skill matches found.");
+            notes.add("No direct skill matches were identified.");
         }
 
         // Experience note
-        Float candidateExp = Float.valueOf(candidate.getTotalExperienceYears());
-        if (candidateExp != null) {
-            String experienceNote = String.format(
-                    "Your experience (%s years) %s the required level (%s).",
-                    candidateExp,
-                    isExperienceSuitable(candidateExp, job.getExperienceLevel()) ? "matches" : "may not fully match",
-                    job.getExperienceLevel().name()
-            );
-            notes.add(experienceNote);
+        Integer totalExperienceYears = candidate.getTotalExperienceYears();
+        if (totalExperienceYears != null) {
+            Float candidateExp = totalExperienceYears.floatValue();
+            String requiredLevel = formatEnumLabel(job.getExperienceLevel() != null ? job.getExperienceLevel().name() : null);
+
+            if (isExperienceSuitable(candidateExp, job.getExperienceLevel())) {
+                notes.add(String.format(
+                        "Candidate experience: %.1f years. This aligns with the required level (%s).",
+                        candidateExp,
+                        requiredLevel
+                ));
+            } else {
+                notes.add(String.format(
+                        "Candidate experience: %.1f years. This may not fully align with the required level (%s).",
+                        candidateExp,
+                        requiredLevel
+                ));
+            }
+        } else {
+            notes.add("Candidate experience information is not available.");
         }
 
-        // Location note
+        // Location note - align with actual location scoring
+        int locationScore = locationMatchService.calculateLocationMatchScore(candidate, job);
         if (job.isRemote()) {
-            notes.add("This is a remote position.");
-        } else if (candidate.getPreferredLocationsList() != null &&
-                !candidate.getPreferredLocationsList().isEmpty()) {
-            notes.add("Check if the location matches your preferences.");
+            notes.add("This job is remote.");
+        } else if (locationScore > 0) {
+            notes.add("Candidate location preference matches this job.");
+        } else {
+            notes.add("Candidate location preference does not fully match this job.");
+        }
+
+        // Job type note - recruiter facing
+        int jobTypeScore = jobTypeMatchService.calculateJobTypeMatchScore(candidate, job);
+        String jobTypeLabel = formatEnumLabel(job.getJobType() != null ? job.getJobType().name() : null);
+
+        if (jobTypeScore > 0) {
+            notes.add("Candidate preferred job type matches this role (" + jobTypeLabel + ").");
+        } else {
+            notes.add("Candidate preferred job type does not fully match this role (" + jobTypeLabel + ").");
         }
 
         return String.join(" ", notes);
@@ -119,6 +189,10 @@ public class MatchScoreServiceImpl implements MatchScoreService {
             case EXECUTIVE: return years >= 5;
             default: return true;
         }
+    }
+    private String formatEnumLabel(String value) {
+        if (value == null || value.isBlank()) return "N/A";
+        return value.toLowerCase().replace("_", " ");
     }
 
     // Additional helper method for batch processing

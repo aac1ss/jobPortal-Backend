@@ -89,13 +89,10 @@ public class JobRecommendationServiceImpl implements JobRecommendationService {
     public List<JobRecommendationResponse> getTrendingJobs(Long candidateId, int limit) {
         log.info("Getting trending jobs for candidate: {}", candidateId);
 
-        CandidateProfile candidate = candidateProfileRepository.findByUserId(candidateId)
-                .orElseThrow(() -> new NotFoundException("Candidate profile not found"));
+        Optional<CandidateProfile> candidateOpt = candidateProfileRepository.findByUserId(candidateId);
+        CandidateProfile candidate = candidateOpt.orElse(null);
 
-        // Get trending jobs (most applications in recent days)
         LocalDateTime startDate = LocalDateTime.now().minusDays(TRENDING_WINDOW_DAYS);
-
-        // Get jobs with high application counts in recent days
         List<Object[]> trendingData = jobRepository.findTrendingJobsData(startDate);
 
         List<JobRecommendationResponse> trendingJobs = trendingData.stream()
@@ -105,16 +102,17 @@ public class JobRecommendationServiceImpl implements JobRecommendationService {
 
                     return jobRepository.findById(jobId)
                             .filter(job -> job.isActive() && job.isApplicationOpen())
-                            .filter(job -> !hasAppliedForJob(candidate.getId(), job.getId()))
+                            .filter(job -> candidate == null || !hasAppliedForJob(candidate.getId(), job.getId()))
                             .map(job -> {
-                                RecommendationScore score = calculateRecommendationScore(candidate, job);
-                                JobRecommendationResponse response = createRecommendationResponse(job, candidate, score);
-                                response.setTrendingRank(applicationCount);
-                                response.setRecommendationReasons(Arrays.asList(
-                                        "Trending: " + applicationCount + " applications in last " + TRENDING_WINDOW_DAYS + " days",
-                                        "Popular in " + job.getCompany().getIndustry().getName() + " industry"
-                                ));
-                                return response;
+                                if (candidate != null) {
+                                    RecommendationScore score = calculateRecommendationScore(candidate, job);
+                                    JobRecommendationResponse response = createRecommendationResponse(job, candidate, score);
+                                    response.setTrendingRank(applicationCount);
+                                    response.setRecommendationReasons(buildTrendingReasons(job, applicationCount, candidate));
+                                    return response;
+                                } else {
+                                    return createGenericTrendingResponse(job, applicationCount);
+                                }
                             })
                             .orElse(null);
                 })
@@ -123,18 +121,25 @@ public class JobRecommendationServiceImpl implements JobRecommendationService {
                 .limit(limit)
                 .collect(Collectors.toList());
 
-        // If not enough trending jobs, supplement with personalized recommendations
-        if (trendingJobs.size() < limit) {
+        // Only supplement with personalized jobs if candidate profile exists AND is eligible
+        if (trendingJobs.size() < limit && candidate != null && isEligibleForRecommendations(candidateId)) {
             int remaining = limit - trendingJobs.size();
+
+            List<Long> existingJobIds = trendingJobs.stream()
+                    .map(JobRecommendationResponse::getId)
+                    .collect(Collectors.toList());
+
             List<JobRecommendationResponse> personalized = getPersonalizedRecommendations(
                     candidateId, remaining, 30, null, null, Pageable.ofSize(remaining)
-            ).getContent();
+            ).getContent().stream()
+                    .filter(job -> !existingJobIds.contains(job.getId()))
+                    .limit(remaining)
+                    .collect(Collectors.toList());
 
             trendingJobs.addAll(personalized);
         }
 
         log.info("Found {} trending jobs for candidate {}", trendingJobs.size(), candidateId);
-
         return trendingJobs;
     }
 
@@ -161,6 +166,70 @@ public class JobRecommendationServiceImpl implements JobRecommendationService {
     }
 
     // =========== PRIVATE HELPER METHODS ===========
+    private JobRecommendationResponse createGenericTrendingResponse(Job job, Integer applicationCount) {
+        JobRecommendationResponse response = new JobRecommendationResponse();
+
+        response.setId(job.getId());
+        response.setTitle(job.getTitle());
+        response.setCompanyId(job.getCompany().getId());
+        response.setCompanyName(job.getCompany().getCompanyName());
+        response.setCompanyLogo(job.getCompany().getLogoUrl());
+        response.setLocation(job.getLocation());
+        response.setJobType(job.getJobType().name());
+        response.setIsRemote(job.isRemote());
+        response.setExperienceLevel(job.getExperienceLevel().name());
+        response.setCreatedAt(job.getCreatedAt());
+        response.setApplicationDeadline(job.getApplicationDeadline());
+        response.setIsApplicationOpen(job.isApplicationOpen());
+
+        response.setSalaryMin(job.getSalaryMin());
+        response.setSalaryMax(job.getSalaryMax());
+        response.setSalaryCurrency(job.getSalaryCurrency());
+
+        response.setTrendingRank(applicationCount);
+
+        // No candidate-specific recommendation scoring
+        response.setRecommendationScore(0.0);
+        response.setMatchScore(0);
+
+        Map<String, Double> scoreBreakdown = new LinkedHashMap<>();
+        scoreBreakdown.put("Skills", 0.0);
+        scoreBreakdown.put("Experience", 0.0);
+        scoreBreakdown.put("Location", 0.0);
+        scoreBreakdown.put("Job Type", 0.0);
+        scoreBreakdown.put("Salary", 0.0);
+        scoreBreakdown.put("Trending", calculateTrendingScore(job) * TRENDING_WEIGHT);
+        scoreBreakdown.put("Recency", calculateRecencyScore(job) * RECENCY_WEIGHT);
+        response.setScoreBreakdown(scoreBreakdown);
+
+        response.setRecommendationReasons(Arrays.asList(
+                "Trending: " + applicationCount + " applications in last " + TRENDING_WINDOW_DAYS + " days",
+                "Popular in " + job.getCompany().getIndustry().getName() + " industry"
+        ));
+
+        return response;
+    }
+
+    private List<String> buildTrendingReasons(Job job, Integer applicationCount, CandidateProfile candidate) {
+        List<String> reasons = new ArrayList<>();
+        reasons.add("Trending: " + applicationCount + " applications in last " + TRENDING_WINDOW_DAYS + " days");
+        reasons.add("Popular in " + job.getCompany().getIndustry().getName() + " industry");
+
+        List<String> preferredJobTypes = candidate.getPreferredJobTypesList();
+        if (preferredJobTypes != null && preferredJobTypes.contains(job.getJobType().name())) {
+            reasons.add("Matches your preferred job type: " + job.getJobType().name());
+        }
+
+        List<String> preferredLocations = candidate.getPreferredLocationsList();
+        if (!job.isRemote() && preferredLocations != null && !preferredLocations.isEmpty()) {
+            if (preferredLocations.stream().anyMatch(loc ->
+                    job.getLocation() != null && job.getLocation().toLowerCase().contains(loc.toLowerCase()))) {
+                reasons.add("Located in your preferred area");
+            }
+        }
+
+        return reasons;
+    }
 
     private RecommendationScore calculateRecommendationScore(CandidateProfile candidate, Job job) {
         RecommendationScore score = new RecommendationScore();
