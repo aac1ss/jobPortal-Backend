@@ -28,19 +28,17 @@ public class JobRecommendationServiceImpl implements JobRecommendationService {
     private final CandidateProfileRepository candidateProfileRepository;
     private final JobRepository jobRepository;
     private final JobApplicationRepository jobApplicationRepository;
+    private final MatchScoreService matchScoreService;  // ← ADD THIS
     private final SkillMatchService skillMatchService;
     private final ExperienceMatchService experienceMatchService;
     private final LocationMatchService locationMatchService;
     private final JobTypeMatchService jobTypeMatchService;
 
     // Weight configuration for recommendation algorithm
-    private static final double SKILL_WEIGHT = 0.25;      // 25%
-    private static final double EXPERIENCE_WEIGHT = 0.20; // 20%
-    private static final double LOCATION_WEIGHT = 0.15;   // 15%
+    private static final double SKILL_WEIGHT = 0.40;      // 40% (increased to match MatchScoreService)
+    private static final double EXPERIENCE_WEIGHT = 0.30; // 30%
+    private static final double LOCATION_WEIGHT = 0.20;   // 20%
     private static final double JOB_TYPE_WEIGHT = 0.10;   // 10%
-    private static final double SALARY_WEIGHT = 0.10;     // 10%
-    private static final double TRENDING_WEIGHT = 0.05;   // 5%
-    private static final double RECENCY_WEIGHT = 0.10;    // 10%
 
     // Trending job calculation window (days)
     private static final int TRENDING_WINDOW_DAYS = 7;
@@ -71,12 +69,14 @@ public class JobRecommendationServiceImpl implements JobRecommendationService {
                 .filter(Job::isApplicationOpen)
                 .filter(job -> filterByTypeAndLocation(job, jobType, location))
                 .map(job -> {
-                    RecommendationScore score = calculateRecommendationScore(candidate, job);
-                    return createRecommendationResponse(job, candidate, score);
+                    // USE MATCH SCORE SERVICE FOR CONSISTENCY
+                    int matchScore = matchScoreService.calculateMatchScore(candidate, job);
+                    RecommendationScore score = createRecommendationScoreFromMatch(matchScore, candidate, job);
+                    return createRecommendationResponse(job, candidate, score, matchScore);
                 })
                 .filter(response -> response.getMatchScore() >= minScore)
                 .sorted((a, b) -> Double.compare(b.getRecommendationScore(), a.getRecommendationScore()))
-                .limit(Math.min(limit, 100)) // Safety limit
+                .limit(Math.min(limit, 100))
                 .collect(Collectors.toList());
 
         log.info("Found {} recommendations for candidate {}", recommendations.size(), candidateId);
@@ -89,10 +89,11 @@ public class JobRecommendationServiceImpl implements JobRecommendationService {
     public List<JobRecommendationResponse> getTrendingJobs(Long candidateId, int limit) {
         log.info("Getting trending jobs for candidate: {}", candidateId);
 
-        Optional<CandidateProfile> candidateOpt = candidateProfileRepository.findByUserId(candidateId);
-        CandidateProfile candidate = candidateOpt.orElse(null);
+        CandidateProfile candidate = candidateProfileRepository.findByUserId(candidateId)
+                .orElseThrow(() -> new NotFoundException("Candidate profile not found"));
 
         LocalDateTime startDate = LocalDateTime.now().minusDays(TRENDING_WINDOW_DAYS);
+
         List<Object[]> trendingData = jobRepository.findTrendingJobsData(startDate);
 
         List<JobRecommendationResponse> trendingJobs = trendingData.stream()
@@ -102,17 +103,17 @@ public class JobRecommendationServiceImpl implements JobRecommendationService {
 
                     return jobRepository.findById(jobId)
                             .filter(job -> job.isActive() && job.isApplicationOpen())
-                            .filter(job -> candidate == null || !hasAppliedForJob(candidate.getId(), job.getId()))
+                            .filter(job -> !hasAppliedForJob(candidate.getId(), job.getId()))
                             .map(job -> {
-                                if (candidate != null) {
-                                    RecommendationScore score = calculateRecommendationScore(candidate, job);
-                                    JobRecommendationResponse response = createRecommendationResponse(job, candidate, score);
-                                    response.setTrendingRank(applicationCount);
-                                    response.setRecommendationReasons(buildTrendingReasons(job, applicationCount, candidate));
-                                    return response;
-                                } else {
-                                    return createGenericTrendingResponse(job, applicationCount);
-                                }
+                                int matchScore = matchScoreService.calculateMatchScore(candidate, job);
+                                RecommendationScore score = createRecommendationScoreFromMatch(matchScore, candidate, job);
+                                JobRecommendationResponse response = createRecommendationResponse(job, candidate, score, matchScore);
+                                response.setTrendingRank(applicationCount);
+                                response.setRecommendationReasons(Arrays.asList(
+                                        "Trending: " + applicationCount + " applications in last " + TRENDING_WINDOW_DAYS + " days",
+                                        "Popular in " + job.getCompany().getIndustry().getName() + " industry"
+                                ));
+                                return response;
                             })
                             .orElse(null);
                 })
@@ -121,21 +122,11 @@ public class JobRecommendationServiceImpl implements JobRecommendationService {
                 .limit(limit)
                 .collect(Collectors.toList());
 
-        // Only supplement with personalized jobs if candidate profile exists AND is eligible
-        if (trendingJobs.size() < limit && candidate != null && isEligibleForRecommendations(candidateId)) {
+        if (trendingJobs.size() < limit) {
             int remaining = limit - trendingJobs.size();
-
-            List<Long> existingJobIds = trendingJobs.stream()
-                    .map(JobRecommendationResponse::getId)
-                    .collect(Collectors.toList());
-
             List<JobRecommendationResponse> personalized = getPersonalizedRecommendations(
                     candidateId, remaining, 30, null, null, Pageable.ofSize(remaining)
-            ).getContent().stream()
-                    .filter(job -> !existingJobIds.contains(job.getId()))
-                    .limit(remaining)
-                    .collect(Collectors.toList());
-
+            ).getContent();
             trendingJobs.addAll(personalized);
         }
 
@@ -151,7 +142,8 @@ public class JobRecommendationServiceImpl implements JobRecommendationService {
         Job job = jobRepository.findById(jobId)
                 .orElseThrow(() -> new NotFoundException("Job not found"));
 
-        return calculateRecommendationScore(candidate, job);
+        int matchScore = matchScoreService.calculateMatchScore(candidate, job);
+        return createRecommendationScoreFromMatch(matchScore, candidate, job);
     }
 
     @Override
@@ -165,202 +157,112 @@ public class JobRecommendationServiceImpl implements JobRecommendationService {
         return generateRecommendationReasons(candidate, job);
     }
 
-    // =========== PRIVATE HELPER METHODS ===========
-    private JobRecommendationResponse createGenericTrendingResponse(Job job, Integer applicationCount) {
-        JobRecommendationResponse response = new JobRecommendationResponse();
+    // =========== NEW HELPER METHOD ===========
 
-        response.setId(job.getId());
-        response.setTitle(job.getTitle());
-        response.setCompanyId(job.getCompany().getId());
-        response.setCompanyName(job.getCompany().getCompanyName());
-        response.setCompanyLogo(job.getCompany().getLogoUrl());
-        response.setLocation(job.getLocation());
-        response.setJobType(job.getJobType().name());
-        response.setIsRemote(job.isRemote());
-        response.setExperienceLevel(job.getExperienceLevel().name());
-        response.setCreatedAt(job.getCreatedAt());
-        response.setApplicationDeadline(job.getApplicationDeadline());
-        response.setIsApplicationOpen(job.isApplicationOpen());
-
-        response.setSalaryMin(job.getSalaryMin());
-        response.setSalaryMax(job.getSalaryMax());
-        response.setSalaryCurrency(job.getSalaryCurrency());
-
-        response.setTrendingRank(applicationCount);
-
-        // No candidate-specific recommendation scoring
-        response.setRecommendationScore(0.0);
-        response.setMatchScore(0);
-
-        Map<String, Double> scoreBreakdown = new LinkedHashMap<>();
-        scoreBreakdown.put("Skills", 0.0);
-        scoreBreakdown.put("Experience", 0.0);
-        scoreBreakdown.put("Location", 0.0);
-        scoreBreakdown.put("Job Type", 0.0);
-        scoreBreakdown.put("Salary", 0.0);
-        scoreBreakdown.put("Trending", calculateTrendingScore(job) * TRENDING_WEIGHT);
-        scoreBreakdown.put("Recency", calculateRecencyScore(job) * RECENCY_WEIGHT);
-        response.setScoreBreakdown(scoreBreakdown);
-
-        response.setRecommendationReasons(Arrays.asList(
-                "Trending: " + applicationCount + " applications in last " + TRENDING_WINDOW_DAYS + " days",
-                "Popular in " + job.getCompany().getIndustry().getName() + " industry"
-        ));
-
-        return response;
-    }
-
-    private List<String> buildTrendingReasons(Job job, Integer applicationCount, CandidateProfile candidate) {
-        List<String> reasons = new ArrayList<>();
-        reasons.add("Trending: " + applicationCount + " applications in last " + TRENDING_WINDOW_DAYS + " days");
-        reasons.add("Popular in " + job.getCompany().getIndustry().getName() + " industry");
-
-        List<String> preferredJobTypes = candidate.getPreferredJobTypesList();
-        if (preferredJobTypes != null && preferredJobTypes.contains(job.getJobType().name())) {
-            reasons.add("Matches your preferred job type: " + job.getJobType().name());
-        }
-
-        List<String> preferredLocations = candidate.getPreferredLocationsList();
-        if (!job.isRemote() && preferredLocations != null && !preferredLocations.isEmpty()) {
-            if (preferredLocations.stream().anyMatch(loc ->
-                    job.getLocation() != null && job.getLocation().toLowerCase().contains(loc.toLowerCase()))) {
-                reasons.add("Located in your preferred area");
-            }
-        }
-
-        return reasons;
-    }
-
-    private RecommendationScore calculateRecommendationScore(CandidateProfile candidate, Job job) {
+    private RecommendationScore createRecommendationScoreFromMatch(int matchScore, CandidateProfile candidate, Job job) {
         RecommendationScore score = new RecommendationScore();
 
         try {
-            // Start with base score (10 points)
-            double baseScore = 10.0;
+            // Distribute the total match score back to individual components
+            // This maintains backward compatibility while ensuring consistency
 
-            // 1. Skill Match Score
-            List<String> candidateSkills = candidate.getSkillsList();
-            List<String> jobSkills = job.getRequiredSkillsList();
+            double skillPercentage = calculateSkillPercentage(candidate, job);
+            double experiencePercentage = calculateExperiencePercentage(candidate, job);
+            double locationPercentage = calculateLocationPercentage(candidate, job);
+            double jobTypePercentage = calculateJobTypePercentage(candidate, job);
 
-            // If candidate has no skills but job requires skills, give partial score
-            if ((candidateSkills == null || candidateSkills.isEmpty()) &&
-                    (jobSkills != null && !jobSkills.isEmpty())) {
-                score.setSkillScore(5.0 * SKILL_WEIGHT); // Partial score
-            } else {
-                int skillMatchPoints = skillMatchService.calculateSkillMatchScore(candidateSkills, jobSkills);
-                score.setSkillScore(skillMatchPoints * SKILL_WEIGHT);
-            }
-
-            // 2. Experience Match Score - More generous
-            Integer candidateExpYears = candidate.getTotalExperienceYears();
-            if (candidateExpYears != null) {
-                int experiencePoints = experienceMatchService.calculateExperienceMatchScore(
-                        candidateExpYears.floatValue(), job.getExperienceLevel());
-                score.setExperienceScore(experiencePoints * EXPERIENCE_WEIGHT);
-            } else {
-                // If no experience specified, give average score
-                score.setExperienceScore(15.0 * EXPERIENCE_WEIGHT);
-            }
-
-            // 3. Location Match Score
-            int locationPoints = locationMatchService.calculateLocationMatchScore(candidate, job);
-            score.setLocationScore(locationPoints * LOCATION_WEIGHT);
-
-            // 4. Job Type Match Score
-            int jobTypePoints = jobTypeMatchService.calculateJobTypeMatchScore(candidate, job);
-            score.setJobTypeScore(jobTypePoints * JOB_TYPE_WEIGHT);
-
-            // 5. Salary Match Score - Make it optional
-            double salaryScore = calculateSalaryMatchScore(candidate, job);
-            score.setSalaryScore(salaryScore * SALARY_WEIGHT);
-
-            // 6. Trending Score - Give minimum for new systems
-            double trendingScore = Math.max(calculateTrendingScore(job), 2.0);
-            score.setTrendingScore(trendingScore * TRENDING_WEIGHT);
-
-            // 7. Recency Score
-            double recencyScore = calculateRecencyScore(job);
-            score.setRecencyScore(recencyScore * RECENCY_WEIGHT);
-
-            // Calculate total score with base score
-            double totalScore = baseScore +
-                    score.getSkillScore() + score.getExperienceScore() +
-                    score.getLocationScore() + score.getJobTypeScore() +
-                    score.getSalaryScore() + score.getTrendingScore() +
-                    score.getRecencyScore();
-
-            // Ensure minimum score of 20 for all active jobs
-            score.setTotalScore(Math.max(totalScore, 20.0));
+            // Calculate individual scores based on matchScore and percentages
+            score.setSkillScore((matchScore * SKILL_WEIGHT) * skillPercentage);
+            score.setExperienceScore((matchScore * EXPERIENCE_WEIGHT) * experiencePercentage);
+            score.setLocationScore((matchScore * LOCATION_WEIGHT) * locationPercentage);
+            score.setJobTypeScore((matchScore * JOB_TYPE_WEIGHT) * jobTypePercentage);
+            score.setSalaryScore(0.0);
+            score.setTrendingScore(0.0);
+            score.setRecencyScore(0.0);
+            score.setTotalScore(matchScore);
 
         } catch (Exception e) {
-            log.error("Error calculating recommendation score for candidate {} and job {}",
-                    candidate.getId(), job.getId(), e);
-            // Give minimum score instead of 0
-            score.setTotalScore(20.0);
+            log.error("Error creating recommendation score", e);
+            score.setTotalScore(matchScore);
+            score.setSkillScore(matchScore * SKILL_WEIGHT);
+            score.setExperienceScore(matchScore * EXPERIENCE_WEIGHT);
+            score.setLocationScore(matchScore * LOCATION_WEIGHT);
+            score.setJobTypeScore(matchScore * JOB_TYPE_WEIGHT);
         }
 
         return score;
     }
 
-    private double calculateSalaryMatchScore(CandidateProfile candidate, Job job) {
-        BigDecimal candidateExpected = candidate.getExpectedSalary();
-        BigDecimal jobMin = job.getSalaryMin();
-        BigDecimal jobMax = job.getSalaryMax();
+    private double calculateSkillPercentage(CandidateProfile candidate, Job job) {
+        List<String> candidateSkills = candidate.getSkillsList();
+        List<String> jobSkills = job.getRequiredSkillsList();
 
-        // If salary info is missing, give average score
-        if (candidateExpected == null || jobMin == null || jobMax == null) {
-            return 7.5; // Average score instead of 5
+        if (candidateSkills.isEmpty() || jobSkills.isEmpty()) {
+            return 0.5; // Default 50%
         }
 
-        // Rest of the calculation...
-        return 7.5; // Default to average
+        long matchingSkills = candidateSkills.stream()
+                .map(String::toLowerCase)
+                .filter(skill -> jobSkills.stream()
+                        .anyMatch(jobSkill -> jobSkill.toLowerCase().contains(skill) || skill.contains(jobSkill.toLowerCase())))
+                .count();
+
+        return (double) matchingSkills / jobSkills.size();
     }
 
-    private double calculateTrendingScore(Job job) {
-        // Calculate how "hot" this job is based on recent applications
-        LocalDateTime weekAgo = LocalDateTime.now().minusDays(7);
+    private double calculateExperiencePercentage(CandidateProfile candidate, Job job) {
+        Integer candidateExp = candidate.getTotalExperienceYears();
+        if (candidateExp == null) return 0.5;
 
-        // Get application count in last 7 days
-        Long recentApplications = jobApplicationRepository.countByJobIdAndAppliedAtAfter(
-                job.getId(), weekAgo);
-
-        if (recentApplications == null) recentApplications = 0L;
-
-        // Normalize to 0-8 scale
-        if (recentApplications >= 50) return 8.0;
-        if (recentApplications >= 30) return 6.5;
-        if (recentApplications >= 15) return 5.0;
-        if (recentApplications >= 5) return 3.5;
-        if (recentApplications >= 1) return 2.0;
-        return 1.0;
+        switch (job.getExperienceLevel()) {
+            case INTERN:
+                return candidateExp <= 1 ? 1.0 : Math.max(0, 1.0 - (candidateExp - 1) * 0.2);
+            case JUNIOR_LEVEL:
+                return candidateExp <= 3 ? 1.0 : Math.max(0, 1.0 - (candidateExp - 3) * 0.15);
+            case MID_LEVEL:
+                if (candidateExp >= 2 && candidateExp <= 5) return 1.0;
+                if (candidateExp < 2) return 0.5;
+                return Math.max(0, 1.0 - (candidateExp - 5) * 0.1);
+            case SENIOR_LEVEL:
+                if (candidateExp >= 5 && candidateExp <= 10) return 1.0;
+                if (candidateExp < 5) return 0.5 + (candidateExp / 10.0);
+                return Math.max(0, 1.0 - (candidateExp - 10) * 0.05);
+            case EXECUTIVE:
+                return candidateExp >= 10 ? 1.0 : candidateExp / 10.0;
+            default:
+                return 0.5;
+        }
     }
 
-    private double calculateRecencyScore(Job job) {
-        // Newer jobs get higher score
-        LocalDateTime jobCreated = job.getCreatedAt();
-        if (jobCreated == null) return 3.5;
+    private double calculateLocationPercentage(CandidateProfile candidate, Job job) {
+        if (job.isRemote()) {
+            if (candidate.getRemotePreference() != null && candidate.getRemotePreference()) {
+                return 1.0;
+            }
+            return 0.8;
+        }
 
-        long daysOld = java.time.Duration.between(jobCreated, LocalDateTime.now()).toDays();
+        List<String> preferredLocations = candidate.getPreferredLocationsList();
+        if (preferredLocations.isEmpty()) return 0.5;
 
-        if (daysOld <= 1) return 7.0;   // Today or yesterday
-        if (daysOld <= 3) return 6.0;   // Last 3 days
-        if (daysOld <= 7) return 5.0;   // Last week
-        if (daysOld <= 14) return 4.0;  // Last 2 weeks
-        if (daysOld <= 30) return 3.0;  // Last month
-        return 2.0;                     // Older
+        boolean locationMatch = preferredLocations.stream()
+                .anyMatch(loc -> job.getLocation().toLowerCase().contains(loc.toLowerCase()));
+
+        return locationMatch ? 1.0 : 0.3;
+    }
+
+    private double calculateJobTypePercentage(CandidateProfile candidate, Job job) {
+        List<String> preferredJobTypes = candidate.getPreferredJobTypesList();
+        if (preferredJobTypes.isEmpty()) return 0.5;
+
+        boolean jobTypeMatch = preferredJobTypes.stream()
+                .anyMatch(type -> type.equalsIgnoreCase(job.getJobType().name()));
+
+        return jobTypeMatch ? 1.0 : 0.2;
     }
 
     private JobRecommendationResponse createRecommendationResponse(
-            Job job, CandidateProfile candidate, RecommendationScore score) {
-        log.debug("Calculating recommendation for job {} - Candidate {}: Total Score = {}",
-                job.getId(), candidate.getId(), score.getTotalScore());
-
-        if (score.getTotalScore() < 50) {
-            log.debug("Score breakdown for job {}: Skills={}, Experience={}, Location={}, JobType={}, Salary={}, Trending={}, Recency={}",
-                    job.getId(), score.getSkillScore(), score.getExperienceScore(),
-                    score.getLocationScore(), score.getJobTypeScore(),
-                    score.getSalaryScore(), score.getTrendingScore(), score.getRecencyScore());
-        }
+            Job job, CandidateProfile candidate, RecommendationScore score, int matchScore) {
 
         JobRecommendationResponse response = new JobRecommendationResponse();
 
@@ -383,9 +285,9 @@ public class JobRecommendationServiceImpl implements JobRecommendationService {
         response.setSalaryMax(job.getSalaryMax());
         response.setSalaryCurrency(job.getSalaryCurrency());
 
-        // Scores
-        response.setRecommendationScore(score.getTotalScore());
-        response.setMatchScore((int) score.getTotalScore()); // For backward compatibility
+        // Scores - USE THE MATCH SCORE
+        response.setRecommendationScore((double) matchScore);
+        response.setMatchScore(matchScore);
 
         // Score breakdown
         Map<String, Double> scoreBreakdown = new LinkedHashMap<>();
@@ -393,9 +295,6 @@ public class JobRecommendationServiceImpl implements JobRecommendationService {
         scoreBreakdown.put("Experience", score.getExperienceScore());
         scoreBreakdown.put("Location", score.getLocationScore());
         scoreBreakdown.put("Job Type", score.getJobTypeScore());
-        scoreBreakdown.put("Salary", score.getSalaryScore());
-        scoreBreakdown.put("Trending", score.getTrendingScore());
-        scoreBreakdown.put("Recency", score.getRecencyScore());
         response.setScoreBreakdown(scoreBreakdown);
 
         // Recommendation reasons
@@ -418,12 +317,14 @@ public class JobRecommendationServiceImpl implements JobRecommendationService {
             } else {
                 reasons.add("Matches your skills in: " + String.join(", ", matchingSkills.subList(0, Math.min(3, matchingSkills.size()))));
             }
+        } else if (!job.getRequiredSkillsList().isEmpty()) {
+            reasons.add("Consider adding these skills: " + String.join(", ", job.getRequiredSkillsList().stream().limit(3).collect(Collectors.toList())));
         }
 
         // Experience reason
         if (candidate.getTotalExperienceYears() != null) {
             String expLevel = job.getExperienceLevel().name().toLowerCase().replace("_", " ");
-            reasons.add("Matches your " + candidate.getTotalExperienceYears() + " years of experience (" + expLevel + " level)");
+            reasons.add("Your " + candidate.getTotalExperienceYears() + " years of experience (" + expLevel + " level)");
         }
 
         // Location reason
@@ -437,7 +338,7 @@ public class JobRecommendationServiceImpl implements JobRecommendationService {
         } else if (preferredLocations != null && !preferredLocations.isEmpty()) {
             if (preferredLocations.stream().anyMatch(loc ->
                     job.getLocation().toLowerCase().contains(loc.toLowerCase()))) {
-                reasons.add("Located in your preferred area");
+                reasons.add("Located in your preferred area: " + job.getLocation());
             }
         }
 
@@ -452,13 +353,9 @@ public class JobRecommendationServiceImpl implements JobRecommendationService {
                 job.getSalaryMin() != null && job.getSalaryMax() != null) {
             if (candidate.getExpectedSalary().compareTo(job.getSalaryMax()) <= 0) {
                 reasons.add("Salary range matches your expectations");
+            } else if (candidate.getExpectedSalary().compareTo(job.getSalaryMin()) <= 0) {
+                reasons.add("Salary is within your expected range");
             }
-        }
-
-        // Trending reason
-        double trendingScore = calculateTrendingScore(job);
-        if (trendingScore >= 6.0) {
-            reasons.add("Popular job with high recent interest");
         }
 
         // If no specific reasons, add generic ones
@@ -494,7 +391,6 @@ public class JobRecommendationServiceImpl implements JobRecommendationService {
         CandidateProfile candidate = candidateProfileRepository.findByUserId(candidateId)
                 .orElseThrow(() -> new NotFoundException("Candidate profile not found"));
 
-        // Minimum profile completion for recommendations
         return candidate.getCompletionPercentage() >= 60 &&
                 candidate.getUser().isActive() &&
                 candidate.getUser().isEmailVerified();

@@ -519,10 +519,11 @@ public class CandidateServiceImpl implements CandidateService {
 
         List<Job> activeJobs = jobRepository.findByIsActiveTrue(PageRequest.of(0, 50));
 
-        // Filter and sort jobs based on match score
+        // Don't filter out applied jobs - just show them with applied flag
         return activeJobs.stream()
                 .filter(job -> job.isActive() && job.isApplicationOpen())
-                .filter(job -> !job.hasApplied(candidate))
+                // REMOVE THIS LINE ↓
+                // .filter(job -> !job.hasApplied(candidate))
                 .map(job -> {
                     RecommendedJob recommended = new RecommendedJob();
                     recommended.setId(job.getId());
@@ -534,6 +535,7 @@ public class CandidateServiceImpl implements CandidateService {
                     recommended.setIsRemote(job.isRemote());
                     recommended.setSalaryRange(formatSalaryRange(job));
                     recommended.setPostedDate(job.getCreatedAt());
+                    recommended.setHasApplied(job.hasApplied(candidate)); // Add this flag
                     return recommended;
                 })
                 .sorted((a, b) -> b.getMatchScore() - a.getMatchScore())

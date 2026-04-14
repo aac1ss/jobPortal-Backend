@@ -24,4 +24,5 @@ public class RecommendedJob {
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime postedDate;
+    private Boolean hasApplied;
 }
