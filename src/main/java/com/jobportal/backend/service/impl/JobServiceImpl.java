@@ -4,6 +4,8 @@ import com.jobportal.backend.dto.job.request.CreateJobRequest;
 import com.jobportal.backend.dto.job.request.UpdateJobRequest;
 import com.jobportal.backend.dto.job.response.JobResponse;
 import com.jobportal.backend.entity.*;
+import com.jobportal.backend.enums.ExperienceLevel;
+import com.jobportal.backend.enums.JobType;
 import com.jobportal.backend.enums.SalaryType;
 import com.jobportal.backend.exception.ResourceNotFoundException;
 import com.jobportal.backend.exception.UnauthorizedAccessException;
@@ -18,6 +20,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.jobportal.backend.exception.BadRequestException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -270,14 +273,43 @@ public class JobServiceImpl implements JobService {
                                               String experienceLevel, Boolean isRemote, Pageable pageable) {
         log.debug("Searching active jobs with filters");
 
-        if (keyword != null && !keyword.trim().isEmpty()) {
+        String normalizedKeyword = (keyword != null) ? keyword.trim() : null;
+        String normalizedLocation = (location != null) ? location.trim() : null;
 
-            return jobRepository.searchActiveJobsByKeyword(keyword.trim(), location, jobType,
-                            experienceLevel, isRemote, pageable)
+        JobType jobTypeEnum = null;
+        if (jobType != null && !jobType.trim().isEmpty()) {
+            try {
+                jobTypeEnum = JobType.valueOf(jobType.trim().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("Invalid job type: " + jobType);
+            }
+        }
+
+        ExperienceLevel experienceLevelEnum = null;
+        if (experienceLevel != null && !experienceLevel.trim().isEmpty()) {
+            try {
+                experienceLevelEnum = ExperienceLevel.valueOf(experienceLevel.trim().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("Invalid experience level: " + experienceLevel);
+            }
+        }
+
+        if (normalizedKeyword != null && !normalizedKeyword.isEmpty()) {
+            return jobRepository.searchActiveJobsByKeyword(
+                            normalizedKeyword,
+                            normalizedLocation,
+                            jobTypeEnum,
+                            experienceLevelEnum,
+                            isRemote,
+                            pageable)
                     .map(this::mapToResponse);
         } else {
-            return jobRepository.findActiveJobsWithFilters(location, jobType,
-                            experienceLevel, isRemote, pageable)
+            return jobRepository.findActiveJobsWithFilters(
+                            normalizedLocation,
+                            jobTypeEnum,
+                            experienceLevelEnum,
+                            isRemote,
+                            pageable)
                     .map(this::mapToResponse);
         }
     }
