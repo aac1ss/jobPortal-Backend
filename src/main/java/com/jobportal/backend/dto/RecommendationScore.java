@@ -9,6 +9,7 @@ public class RecommendationScore {
         private double salaryScore;
         private double trendingScore;
         private double recencyScore;
+        private double baseScore;
 
         // Getters and setters
         public double getTotalScore() { return totalScore; }
@@ -27,4 +28,12 @@ public class RecommendationScore {
         public void setTrendingScore(double trendingScore) { this.trendingScore = trendingScore; }
         public double getRecencyScore() { return recencyScore; }
         public void setRecencyScore(double recencyScore) { this.recencyScore = recencyScore; }
+
+    public double getBaseScore() {
+        return baseScore;
     }
+
+    public void setBaseScore(double baseScore) {
+        this.baseScore = baseScore;
+    }
+}
