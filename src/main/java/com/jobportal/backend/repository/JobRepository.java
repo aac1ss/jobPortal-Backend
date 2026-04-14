@@ -2,6 +2,8 @@ package com.jobportal.backend.repository;
 
 import com.jobportal.backend.entity.CompanyProfile;
 import com.jobportal.backend.entity.Job;
+import com.jobportal.backend.enums.ExperienceLevel;
+import com.jobportal.backend.enums.JobType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -59,8 +61,8 @@ public interface JobRepository extends JpaRepository<Job, Long> {
     Page<Job> searchActiveJobsByKeyword(
             @Param("keyword") String keyword,
             @Param("location") String location,
-            @Param("jobType") String jobType,
-            @Param("experienceLevel") String experienceLevel,
+            @Param("jobType") JobType jobType,
+            @Param("experienceLevel") ExperienceLevel experienceLevel,
             @Param("isRemote") Boolean isRemote,
             Pageable pageable);
 
@@ -74,8 +76,8 @@ public interface JobRepository extends JpaRepository<Job, Long> {
             "(:isRemote IS NULL OR j.isRemote = :isRemote)")
     Page<Job> findActiveJobsWithFilters(
             @Param("location") String location,
-            @Param("jobType") String jobType,
-            @Param("experienceLevel") String experienceLevel,
+            @Param("jobType") JobType jobType,
+            @Param("experienceLevel") ExperienceLevel experienceLevel,
             @Param("isRemote") Boolean isRemote,
             Pageable pageable);
 
