@@ -17,6 +17,7 @@ import com.jobportal.backend.exception.UnauthorizedAccessException;
 import com.jobportal.backend.repository.*;
 import com.jobportal.backend.service.CandidateService;
 import com.jobportal.backend.service.MatchScoreService;
+import com.jobportal.backend.service.JobRecommendationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -43,6 +44,7 @@ public class CandidateServiceImpl implements CandidateService {
     private final JobRepository jobRepository;
     private final ObjectMapper objectMapper;
     private final MatchScoreService matchScoreService;
+    private final JobRecommendationService jobRecommendationService;
 
     @Override
     @Transactional
@@ -468,9 +470,102 @@ public class CandidateServiceImpl implements CandidateService {
         response.setRecentApplications(recentApplications);
 
         response.setProfileHealth(getProfileHealth(candidate));
-        response.setRecommendedJobs(getRecommendedJobs(candidate));
+
+        // Use the JobRecommendationService to get personalized recommendations
+        response.setRecommendedJobs(getPersonalizedRecommendedJobsFromService(userId));
 
         return response;
+    }
+
+    /**
+     * NEW METHOD: Calls the existing JobRecommendationService to get recommendations
+     * This ensures the dashboard uses the EXACT same algorithm as /personalized endpoint
+     */
+    private List<RecommendedJob> getPersonalizedRecommendedJobsFromService(Long userId) {
+        try {
+            // Call the existing recommendation service
+            Page<com.jobportal.backend.dto.job.response.JobRecommendationResponse> recommendationsPage =
+                    jobRecommendationService.getPersonalizedRecommendations(
+                            userId,           // candidateId
+                            5,                // limit (get top 5)
+                            0,                // minScore (no minimum)
+                            null,             // jobType filter
+                            null,             // location filter
+                            PageRequest.of(0, 5)  // pageable
+                    );
+
+            // Convert JobRecommendationResponse to RecommendedJob
+            return recommendationsPage.getContent().stream()
+                    .map(this::convertToRecommendedJob)
+                    .collect(Collectors.toList());
+
+        } catch (Exception e) {
+            log.error("Error getting personalized recommendations for dashboard: {}", e.getMessage(), e);
+            // Fallback to simple recommendations if service fails
+            CandidateProfile candidate = candidateProfileRepository.findByUserId(userId).orElse(null);
+            if (candidate != null) {
+                return getFallbackRecommendedJobs(candidate);
+            }
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Convert JobRecommendationResponse to RecommendedJob for dashboard
+     */
+    private RecommendedJob convertToRecommendedJob(com.jobportal.backend.dto.job.response.JobRecommendationResponse response) {
+        RecommendedJob recommended = new RecommendedJob();
+        recommended.setId(response.getId());
+        recommended.setTitle(response.getTitle());
+        recommended.setCompanyName(response.getCompanyName());
+        recommended.setLocation(response.getLocation());
+        recommended.setJobType(response.getJobType());
+        recommended.setMatchScore(response.getMatchScore()); // This will be 24, 20 etc.
+        recommended.setIsRemote(response.getIsRemote());
+
+        // Format salary range
+        String salaryRange = "Negotiable";
+        if (response.getSalaryMin() != null && response.getSalaryMax() != null) {
+            salaryRange = response.getSalaryMin() + " - " + response.getSalaryMax() + " " + response.getSalaryCurrency();
+        } else if (response.getSalaryMin() != null) {
+            salaryRange = "From " + response.getSalaryMin() + " " + response.getSalaryCurrency();
+        } else if (response.getSalaryMax() != null) {
+            salaryRange = "Up to " + response.getSalaryMax() + " " + response.getSalaryCurrency();
+        }
+        recommended.setSalaryRange(salaryRange);
+        recommended.setPostedDate(response.getCreatedAt());
+
+        return recommended;
+    }
+
+    /**
+     * Fallback method in case the recommendation service fails
+     */
+    private List<RecommendedJob> getFallbackRecommendedJobs(CandidateProfile candidate) {
+        if (!candidate.canApplyForJobs()) {
+            return new ArrayList<>();
+        }
+
+        List<Job> activeJobs = jobRepository.findByIsActiveTrue(PageRequest.of(0, 50));
+
+        return activeJobs.stream()
+                .filter(job -> job.isActive() && job.isApplicationOpen())
+                .filter(job -> !job.hasApplied(candidate))
+                .limit(5)
+                .map(job -> {
+                    RecommendedJob recommended = new RecommendedJob();
+                    recommended.setId(job.getId());
+                    recommended.setTitle(job.getTitle());
+                    recommended.setCompanyName(job.getCompany().getCompanyName());
+                    recommended.setLocation(job.getLocation());
+                    recommended.setJobType(job.getJobType().name());
+                    recommended.setMatchScore(0); // Fallback score
+                    recommended.setIsRemote(job.isRemote());
+                    recommended.setSalaryRange(formatSalaryRange(job));
+                    recommended.setPostedDate(job.getCreatedAt());
+                    return recommended;
+                })
+                .collect(Collectors.toList());
     }
 
     private ProfileHealth getProfileHealth(CandidateProfile candidate) {

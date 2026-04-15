@@ -59,53 +59,6 @@ public class MatchScoreServiceImpl implements MatchScoreService {
     }
 
     @Override
-//    public String generateMatchNotes(CandidateProfile candidate, Job job, int score) {
-//        List<String> notes = new ArrayList<>();
-//
-//        // Overall match assessment
-//        if (score >= 80) {
-//            notes.add("Excellent match! Your skills and experience align perfectly with this role.");
-//        } else if (score >= 60) {
-//            notes.add("Good match. You have relevant skills and experience for this position.");
-//        } else if (score >= 40) {
-//            notes.add("Moderate match. Consider highlighting your transferable skills.");
-//        } else {
-//            notes.add("Basic match. The role may require additional skills or experience.");
-//        }
-//
-//        // Skill-specific notes
-//        List<String> matchingSkills = skillMatchService.findMatchingSkills(
-//                candidate.getSkillsList(), job.getRequiredSkillsList()
-//        );
-//
-//        if (!matchingSkills.isEmpty()) {
-//            notes.add("Matching skills: " + String.join(", ", matchingSkills));
-//        } else {
-//            notes.add("No direct skill matches found.");
-//        }
-//
-//        // Experience note
-//        Float candidateExp = Float.valueOf(candidate.getTotalExperienceYears());
-//        if (candidateExp != null) {
-//            String experienceNote = String.format(
-//                    "Your experience (%s years) %s the required level (%s).",
-//                    candidateExp,
-//                    isExperienceSuitable(candidateExp, job.getExperienceLevel()) ? "matches" : "may not fully match",
-//                    job.getExperienceLevel().name()
-//            );
-//            notes.add(experienceNote);
-//        }
-//
-//        // Location note
-//        if (job.isRemote()) {
-//            notes.add("This is a remote position.");
-//        } else if (candidate.getPreferredLocationsList() != null &&
-//                !candidate.getPreferredLocationsList().isEmpty()) {
-//            notes.add("Check if the location matches your preferences.");
-//        }
-//
-//        return String.join(" ", notes);
-//    }
     public String generateMatchNotes(CandidateProfile candidate, Job job, int score) {
         List<String> notes = new ArrayList<>();
 
