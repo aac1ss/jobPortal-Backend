@@ -151,18 +151,18 @@ public class JobRecommendationServiceImpl implements JobRecommendationService {
                 .orElseThrow(() -> new NotFoundException("Job not found"));
 
         return generateRecommendationReasons(candidate, job);
-    }
 
+    }
     private RecommendationScore calculateRecommendationScoreInternal(CandidateProfile candidate, Job job) {
         RecommendationScore score = new RecommendationScore();
 
         double skillRaw = calculateSkillRawScore(candidate, job);           // 0-100
         double experienceRaw = calculateExperienceRawScore(candidate, job); // 0-100
-        double locationRaw = calculateLocationRawScore(candidate, job);     // 0-100
+        double locationRaw = calculateLocationRawScore(candidate, job);     // 0, 25, 50, 100
         double jobTypeRaw = calculateJobTypeRawScore(candidate, job);       // 0-100
-        double salaryRaw = calculateSalaryRawScore(candidate, job);         // 0-100
-        double trendingRaw = calculateTrendingRawScore(job);                // 0-100
-        double recencyRaw = calculateRecencyRawScore(job);                  // 0-100
+        double salaryRaw = calculateSalaryRawScore(candidate, job);         // 0, 7.5, 50, 100
+        double trendingRaw = calculateTrendingRawScore(job);                // 1.0 - 8.0
+        double recencyRaw = calculateRecencyRawScore(job);                  // 2.0 - 7.0
 
         double skillScore = skillRaw * SKILLS_WEIGHT;
         double experienceScore = experienceRaw * EXPERIENCE_WEIGHT;
@@ -193,6 +193,124 @@ public class JobRecommendationServiceImpl implements JobRecommendationService {
 
         return score;
     }
+
+    private double calculateLocationRawScore(CandidateProfile candidate, Job job) {
+        if (job.isRemote()) {
+            Boolean remotePreference = candidate.getRemotePreference();
+
+            if (Boolean.TRUE.equals(remotePreference)) {
+                return 100.0; // full points
+            }
+            if (remotePreference == null) {
+                return 50.0;  // moderate points
+            }
+            return 25.0;      // minimal points
+        }
+
+        List<String> preferredLocations = candidate.getPreferredLocationsList();
+        if (preferredLocations == null || preferredLocations.isEmpty()) {
+            return 0.0;
+        }
+
+        boolean locationMatch = preferredLocations.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .anyMatch(loc -> job.getLocation() != null &&
+                        job.getLocation().toLowerCase().contains(loc.toLowerCase()));
+
+        return locationMatch ? 100.0 : 0.0;
+    }
+
+    private double calculateSalaryRawScore(CandidateProfile candidate, Job job) {
+        BigDecimal expectedSalary = candidate.getExpectedSalary();
+        BigDecimal salaryMin = job.getSalaryMin();
+        BigDecimal salaryMax = job.getSalaryMax();
+
+        if (expectedSalary == null || salaryMin == null || salaryMax == null) {
+            return 7.5;
+        }
+
+        // Within offered range -> full score
+        if (expectedSalary.compareTo(salaryMin) >= 0 && expectedSalary.compareTo(salaryMax) <= 0) {
+            return 100.0;
+        }
+
+        // Up to 20% above the max -> half score
+        BigDecimal maxWithBuffer = salaryMax.multiply(BigDecimal.valueOf(1.20));
+        if (expectedSalary.compareTo(salaryMax) > 0 && expectedSalary.compareTo(maxWithBuffer) <= 0) {
+            return 50.0;
+        }
+
+        // All other discrepancies -> zero score
+        return 0.0;
+    }
+    private double calculateTrendingRawScore(Job job) {
+        LocalDateTime startDate = LocalDateTime.now().minusDays(TRENDING_WINDOW_DAYS);
+        long applicationCount = jobApplicationRepository.countByJobIdAndAppliedAtAfter(job.getId(), startDate);
+
+        if (applicationCount >= 50) return 8.0;
+        if (applicationCount >= 30) return 6.5;
+        if (applicationCount >= 15) return 5.0;
+        if (applicationCount >= 5)  return 3.5;
+        if (applicationCount >= 1)  return 2.0;
+        return 1.0;
+    }
+
+    private double calculateRecencyRawScore(Job job) {
+        if (job.getCreatedAt() == null) {
+            return 2.0;
+        }
+
+        long daysOld = Duration.between(job.getCreatedAt(), LocalDateTime.now()).toDays();
+
+        if (daysOld <= 1)  return 7.0;
+        if (daysOld <= 3)  return 6.0;
+        if (daysOld <= 7)  return 5.0;
+        if (daysOld <= 14) return 4.0;
+        if (daysOld <= 30) return 3.0;
+        return 2.0;
+    }
+//    private RecommendationScore calculateRecommendationScoreInternal(CandidateProfile candidate, Job job) {
+//        RecommendationScore score = new RecommendationScore();
+//
+//        double skillRaw = calculateSkillRawScore(candidate, job);           // 0-100
+//        double experienceRaw = calculateExperienceRawScore(candidate, job); // 0-100
+//        double locationRaw = calculateLocationRawScore(candidate, job);     // 0-100
+//        double jobTypeRaw = calculateJobTypeRawScore(candidate, job);       // 0-100
+//        double salaryRaw = calculateSalaryRawScore(candidate, job);         // 0-100
+//        double trendingRaw = calculateTrendingRawScore(job);                // 0-100
+//        double recencyRaw = calculateRecencyRawScore(job);                  // 0-100
+//
+//        double skillScore = skillRaw * SKILLS_WEIGHT;
+//        double experienceScore = experienceRaw * EXPERIENCE_WEIGHT;
+//        double locationScore = locationRaw * LOCATION_WEIGHT;
+//        double jobTypeScore = jobTypeRaw * JOB_TYPE_WEIGHT;
+//        double salaryScore = salaryRaw * SALARY_WEIGHT;
+//        double trendingScore = trendingRaw * TRENDING_WEIGHT;
+//        double recencyScore = recencyRaw * RECENCY_WEIGHT;
+//
+//        double totalScore = BASE_SCORE
+//                + skillScore
+//                + experienceScore
+//                + locationScore
+//                + jobTypeScore
+//                + salaryScore
+//                + trendingScore
+//                + recencyScore;
+//
+//        score.setBaseScore(round2(BASE_SCORE));
+//        score.setSkillScore(round2(skillScore));
+//        score.setExperienceScore(round2(experienceScore));
+//        score.setLocationScore(round2(locationScore));
+//        score.setJobTypeScore(round2(jobTypeScore));
+//        score.setSalaryScore(round2(salaryScore));
+//        score.setTrendingScore(round2(trendingScore));
+//        score.setRecencyScore(round2(recencyScore));
+//        score.setTotalScore(round2(totalScore));
+//
+//        return score;
+//    }
 
     private double calculateSkillRawScore(CandidateProfile candidate, Job job) {
         List<String> candidateSkills = candidate.getSkillsList();
@@ -279,26 +397,26 @@ public class JobRecommendationServiceImpl implements JobRecommendationService {
         }
     }
 
-    private double calculateLocationRawScore(CandidateProfile candidate, Job job) {
-        if (job.isRemote()) {
-            if (candidate.getRemotePreference() == null) return 100.0;
-            return candidate.getRemotePreference() ? 100.0 : 50.0;
-        }
-
-        List<String> preferredLocations = candidate.getPreferredLocationsList();
-        if (preferredLocations == null || preferredLocations.isEmpty()) {
-            return 0.0;
-        }
-
-        boolean locationMatch = preferredLocations.stream()
-                .filter(Objects::nonNull)
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .anyMatch(loc -> job.getLocation() != null &&
-                        job.getLocation().toLowerCase().contains(loc.toLowerCase()));
-
-        return locationMatch ? 100.0 : 0.0;
-    }
+//    private double calculateLocationRawScore(CandidateProfile candidate, Job job) {
+//        if (job.isRemote()) {
+//            if (candidate.getRemotePreference() == null) return 100.0;
+//            return candidate.getRemotePreference() ? 100.0 : 50.0;
+//        }
+//
+//        List<String> preferredLocations = candidate.getPreferredLocationsList();
+//        if (preferredLocations == null || preferredLocations.isEmpty()) {
+//            return 0.0;
+//        }
+//
+//        boolean locationMatch = preferredLocations.stream()
+//                .filter(Objects::nonNull)
+//                .map(String::trim)
+//                .filter(s -> !s.isEmpty())
+//                .anyMatch(loc -> job.getLocation() != null &&
+//                        job.getLocation().toLowerCase().contains(loc.toLowerCase()));
+//
+//        return locationMatch ? 100.0 : 0.0;
+//    }
 
     private double calculateJobTypeRawScore(CandidateProfile candidate, Job job) {
         List<String> preferredJobTypes = candidate.getPreferredJobTypesList();
@@ -313,56 +431,56 @@ public class JobRecommendationServiceImpl implements JobRecommendationService {
         return jobTypeMatch ? 100.0 : 0.0;
     }
 
-    private double calculateSalaryRawScore(CandidateProfile candidate, Job job) {
-        BigDecimal expectedSalary = candidate.getExpectedSalary();
-        BigDecimal salaryMin = job.getSalaryMin();
-        BigDecimal salaryMax = job.getSalaryMax();
+//    private double calculateSalaryRawScore(CandidateProfile candidate, Job job) {
+//        BigDecimal expectedSalary = candidate.getExpectedSalary();
+//        BigDecimal salaryMin = job.getSalaryMin();
+//        BigDecimal salaryMax = job.getSalaryMax();
+//
+//        if (expectedSalary == null || salaryMin == null || salaryMax == null) {
+//            return 7.5;
+//        }
+//
+//        if (expectedSalary.compareTo(salaryMax) <= 0 && expectedSalary.compareTo(salaryMin) >= 0) {
+//            return 100.0;
+//        }
+//
+//        BigDecimal maxWithBuffer = salaryMax.multiply(BigDecimal.valueOf(1.20));
+//        if (expectedSalary.compareTo(salaryMax) > 0 && expectedSalary.compareTo(maxWithBuffer) <= 0) {
+//            return 50.0;
+//        }
+//
+//        if (expectedSalary.compareTo(salaryMin) < 0) {
+//            return 100.0;
+//        }
+//
+//        return 0.0;
+//    }
 
-        if (expectedSalary == null || salaryMin == null || salaryMax == null) {
-            return 7.5;
-        }
-
-        if (expectedSalary.compareTo(salaryMax) <= 0 && expectedSalary.compareTo(salaryMin) >= 0) {
-            return 100.0;
-        }
-
-        BigDecimal maxWithBuffer = salaryMax.multiply(BigDecimal.valueOf(1.20));
-        if (expectedSalary.compareTo(salaryMax) > 0 && expectedSalary.compareTo(maxWithBuffer) <= 0) {
-            return 50.0;
-        }
-
-        if (expectedSalary.compareTo(salaryMin) < 0) {
-            return 100.0;
-        }
-
-        return 0.0;
-    }
-
-    private double calculateTrendingRawScore(Job job) {
-        LocalDateTime startDate = LocalDateTime.now().minusDays(TRENDING_WINDOW_DAYS);
-        long applicationCount = jobApplicationRepository.countByJobIdAndAppliedAtAfter(job.getId(), startDate);
-
-        if (applicationCount >= 50) return 100.0;
-        if (applicationCount >= 30) return 75.0;
-        if (applicationCount >= 15) return 50.0;
-        if (applicationCount >= 5) return 25.0;
-        return 12.5;
-    }
-
-    private double calculateRecencyRawScore(Job job) {
-        if (job.getCreatedAt() == null) {
-            return 20.0;
-        }
-
-        long daysOld = Duration.between(job.getCreatedAt(), LocalDateTime.now()).toDays();
-
-        if (daysOld <= 1) return 70.0;
-        if (daysOld <= 3) return 55.0;
-        if (daysOld <= 7) return 40.0;
-        if (daysOld <= 14) return 30.0;
-        if (daysOld <= 30) return 20.0;
-        return 10.0;
-    }
+//    private double calculateTrendingRawScore(Job job) {
+//        LocalDateTime startDate = LocalDateTime.now().minusDays(TRENDING_WINDOW_DAYS);
+//        long applicationCount = jobApplicationRepository.countByJobIdAndAppliedAtAfter(job.getId(), startDate);
+//
+//        if (applicationCount >= 50) return 100.0;
+//        if (applicationCount >= 30) return 75.0;
+//        if (applicationCount >= 15) return 50.0;
+//        if (applicationCount >= 5) return 25.0;
+//        return 12.5;
+//    }
+//
+//    private double calculateRecencyRawScore(Job job) {
+//        if (job.getCreatedAt() == null) {
+//            return 20.0;
+//        }
+//
+//        long daysOld = Duration.between(job.getCreatedAt(), LocalDateTime.now()).toDays();
+//
+//        if (daysOld <= 1) return 70.0;
+//        if (daysOld <= 3) return 55.0;
+//        if (daysOld <= 7) return 40.0;
+//        if (daysOld <= 14) return 30.0;
+//        if (daysOld <= 30) return 20.0;
+//        return 10.0;
+//    }
 
     private JobRecommendationResponse createRecommendationResponse(
             Job job, CandidateProfile candidate, RecommendationScore score) {
@@ -449,12 +567,28 @@ public class JobRecommendationServiceImpl implements JobRecommendationService {
             reasons.add("Matches your preferred job type: " + job.getJobType().name());
         }
 
+//        if (candidate.getExpectedSalary() != null &&
+//                job.getSalaryMin() != null && job.getSalaryMax() != null) {
+//            if (candidate.getExpectedSalary().compareTo(job.getSalaryMax()) <= 0) {
+//                reasons.add("Salary range matches your expectations");
+//            } else if (candidate.getExpectedSalary().compareTo(job.getSalaryMin()) <= 0) {
+//                reasons.add("Salary is within your expected range");
+//            }
+//        }
         if (candidate.getExpectedSalary() != null &&
                 job.getSalaryMin() != null && job.getSalaryMax() != null) {
-            if (candidate.getExpectedSalary().compareTo(job.getSalaryMax()) <= 0) {
+
+            BigDecimal expectedSalary = candidate.getExpectedSalary();
+            BigDecimal salaryMin = job.getSalaryMin();
+            BigDecimal salaryMax = job.getSalaryMax();
+            BigDecimal maxWithBuffer = salaryMax.multiply(BigDecimal.valueOf(1.20));
+
+            if (expectedSalary.compareTo(salaryMin) >= 0 && expectedSalary.compareTo(salaryMax) <= 0) {
                 reasons.add("Salary range matches your expectations");
-            } else if (candidate.getExpectedSalary().compareTo(job.getSalaryMin()) <= 0) {
-                reasons.add("Salary is within your expected range");
+            } else if (expectedSalary.compareTo(salaryMin) < 0) {
+                reasons.add("This job's salary range is above your expected salary");
+            } else if (expectedSalary.compareTo(maxWithBuffer) <= 0) {
+                reasons.add("Salary is slightly below your expected range");
             }
         }
 
