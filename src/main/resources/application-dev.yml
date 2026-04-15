@@ -52,8 +52,8 @@ springdoc:
   packages-to-scan: com.jobportal.backend.controller
   paths-to-match: /api/**
 
-
-logging:
-  level:
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type: TRACE
+#
+#logging:
+#  level:
+#    org.hibernate.SQL: DEBUG
+#    org.hibernate.type: TRACE
