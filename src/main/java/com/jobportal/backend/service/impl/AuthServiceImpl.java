@@ -1,135 +1,458 @@
 package com.jobportal.backend.service.impl;
 
-import com.jobportal.backend.dto.auth.request.LoginRequest;
-import com.jobportal.backend.dto.auth.request.RefreshTokenRequest;
-import com.jobportal.backend.dto.auth.request.RegisterRequest;
-import com.jobportal.backend.dto.auth.response.AuthResponse;
-import com.jobportal.backend.dto.auth.response.TokenRefreshResponse;
+import com.jobportal.backend.dto.security.request.ChangePasswordRequest;
+import com.jobportal.backend.dto.security.request.LoginRequest;
+import com.jobportal.backend.dto.security.request.SignupRequest;
+import com.jobportal.backend.dto.security.request.VerifySignupRequest;
+import com.jobportal.backend.dto.security.response.LoginResponse;
 import com.jobportal.backend.entity.RefreshToken;
-import com.jobportal.backend.entity.Role;
 import com.jobportal.backend.entity.User;
-import com.jobportal.backend.exception.TokenRefreshException;
-import com.jobportal.backend.repository.RoleRepository;
+import com.jobportal.backend.enums.RoleEnum;
+import com.jobportal.backend.exception.AccountLockedException;
+import com.jobportal.backend.exception.AuthenticationException;
+import com.jobportal.backend.exception.UserAlreadyExistsException;
+import com.jobportal.backend.exception.ValidationException;
 import com.jobportal.backend.repository.UserRepository;
+import com.jobportal.backend.security.JwtUtils;
 import com.jobportal.backend.security.UserPrincipal;
-import com.jobportal.backend.security.jwt.JwtUtil;
-import com.jobportal.backend.security.service.TokenBlacklistService;
 import com.jobportal.backend.service.AuthService;
+import com.jobportal.backend.service.EmailVerificationService;
 import com.jobportal.backend.service.RefreshTokenService;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.regex.Pattern;
 
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
+
+    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@(.+)$");
+
+    @Value("${jwt.expiration:900000}")
+    private long jwtExpirationMs;
+
+    @Value("${app.security.max-login-attempts:5}")
+    private int maxLoginAttempts;
+
+    @Value("${app.security.account-lock-duration-minutes:30}")
+    private int accountLockDurationMinutes;
 
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
-    private final RoleRepository roleRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final JwtUtil jwtUtil;
+    private final PasswordEncoder encoder;
+    private final JwtUtils jwtUtils;
     private final RefreshTokenService refreshTokenService;
-    private final TokenBlacklistService tokenBlacklistService;
+    private final EmailVerificationService emailVerificationService;
 
-    public AuthServiceImpl(AuthenticationManager authenticationManager,
-                           UserRepository userRepository,
-                           RoleRepository roleRepository,
-                           PasswordEncoder passwordEncoder,
-                           JwtUtil jwtUtil,
-                           RefreshTokenService refreshTokenService,
-                           TokenBlacklistService tokenBlacklistService) {
-        this.authenticationManager = authenticationManager;
-        this.userRepository = userRepository;
-        this.roleRepository = roleRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.jwtUtil = jwtUtil;
-        this.refreshTokenService = refreshTokenService;
-        this.tokenBlacklistService = tokenBlacklistService;
+    @Override
+    @Transactional
+    public LoginResponse authenticateCandidate(LoginRequest loginRequest) {
+        return authenticateUserWithRole(loginRequest, RoleEnum.CANDIDATE);
     }
 
     @Override
     @Transactional
-    public AuthResponse register(RegisterRequest request, String roleName) {
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email is already in use!");
+    public LoginResponse authenticateRecruiter(LoginRequest loginRequest) {
+        return authenticateUserWithRole(loginRequest, RoleEnum.RECRUITER);
+    }
+
+    @Override
+    @Transactional
+    public LoginResponse authenticateAdmin(LoginRequest loginRequest) {
+        return authenticateUserWithRole(loginRequest, RoleEnum.ADMIN);
+    }
+
+    private LoginResponse authenticateUserWithRole(LoginRequest loginRequest, RoleEnum requiredRole) {
+        String email = loginRequest.getEmail().toLowerCase().trim();
+
+        validateLoginInput(loginRequest);
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> {
+                    log.warn("User not found: {}", email);
+                    return new AuthenticationException("Invalid credentials");
+                });
+        if (!user.isEmailVerified()) {
+            log.warn("Login attempt with unverified email: {}", email);
+            throw new AuthenticationException("Please verify your email before logging in");
         }
 
-        User user = new User();
-        user.setEmail(request.getEmail());
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setPhone(request.getPhone());
+        if (user.isAccountLocked()) {
+            log.warn("Account locked: {}", email);
+            throw new AccountLockedException("Account is temporarily locked");
+        }
 
-        Set<Role> roles = new HashSet<>();
-        Role.RoleName roleEnum = Role.RoleName.valueOf("ROLE_" + roleName.toUpperCase());
-        Role userRole = roleRepository.findByName(roleEnum)
-                .orElseThrow(() -> new RuntimeException("Role not found: " + roleName));
-        roles.add(userRole);
-        user.setRoles(roles);
+        if (!user.hasRole(requiredRole)) {
+            log.warn("Role mismatch: {} expected {}, user has {}",
+                    email, requiredRole, user.getRoleEnums());
+            user.recordFailedLogin(maxLoginAttempts, accountLockDurationMinutes);
+            userRepository.save(user);
+            throw new AuthenticationException("Invalid credentials");
+        }
+
+        try {
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(email, loginRequest.getPassword()));
+
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+
+            UserPrincipal userDetails = (UserPrincipal) authentication.getPrincipal();
+            String jwt = jwtUtils.generateJwtToken(authentication);
+
+            user.recordLogin();
+            userRepository.save(user);
+
+            RefreshToken refreshToken = refreshTokenService.createRefreshToken(userDetails.getId());
+
+            log.info("{} logged in: {}", requiredRole, userDetails.getUsername());
+
+            return new LoginResponse(
+                    jwt,
+                    refreshToken.getToken(),
+                    jwtExpirationMs / 1000
+            );
+
+        } catch (BadCredentialsException e) {
+            user.recordFailedLogin(maxLoginAttempts, accountLockDurationMinutes);
+            userRepository.save(user);
+
+            log.warn("Invalid credentials: {}", email);
+            throw new AuthenticationException("Invalid credentials");
+        } catch (Exception e) {
+            log.error("Authentication failed: {}", email, e);
+            throw new AuthenticationException("Authentication failed");
+        }
+    }
+
+    @Override
+    @Transactional
+    public void registerUser(SignupRequest signUpRequest) {
+        validateRegistrationInput(signUpRequest);
+
+        String email = signUpRequest.getEmail().toLowerCase().trim();
+        String fullName = signUpRequest.getFullName().trim();
+
+        if (userRepository.existsByEmail(email)) {
+            throw new UserAlreadyExistsException("Email already in use");
+        }
+
+        // Hash password
+        String passwordHash = encoder.encode(signUpRequest.getPassword());
+
+        // Convert roles to JSON string
+        String rolesJson = convertRolesToJson(signUpRequest.getRoleEnums());
+
+        // Get HTTP request for IP tracking
+        HttpServletRequest request = getCurrentHttpRequest();
+
+        // Send verification OTP (does NOT save user yet)
+        emailVerificationService.sendVerificationOtp(email, fullName, passwordHash, rolesJson, request);
+
+        log.info("Signup initiated for user: {}. Verification OTP sent.", email);
+    }
+
+    @Override
+    @Transactional
+    public User verifyAndCompleteSignup(VerifySignupRequest verifyRequest) {
+        HttpServletRequest request = getCurrentHttpRequest();
+
+        EmailVerificationService.PendingRegistration pending =
+                emailVerificationService.verifyOtp(verifyRequest, request);
+
+        User user = createUserFromPendingRegistration(pending);
+        User savedUser = userRepository.save(user);
+
+        log.info("User registration completed: {} - {}", savedUser.getEmail(), savedUser.getFullName());
+
+        return savedUser;
+    }
+
+    @Transactional
+    public void resendVerificationOtp(String email) {
+        // Get HTTP request for IP tracking
+        HttpServletRequest request = getCurrentHttpRequest();
+
+        emailVerificationService.resendVerificationOtp(email, request);
+
+        log.info("Verification OTP resent for: {}", email);
+    }
+
+    @Override
+    @Transactional
+    public void logout(String refreshToken) {
+        if (refreshToken == null || refreshToken.trim().isEmpty()) {
+            throw new ValidationException("Refresh token is required");
+        }
+
+        // Delete the refresh token
+        refreshTokenService.deleteByToken(refreshToken);
+
+        log.info("User logged out successfully. Refresh token invalidated.");
+    }
+
+    @Override
+    @Transactional
+    public void changePassword(ChangePasswordRequest request, String authenticatedEmail) {
+        validateChangePasswordRequest(request);
+
+        String email = authenticatedEmail.toLowerCase().trim();
+
+        // Find user by email
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> {
+                    log.warn("User not found for password change: {}", email);
+                    return new AuthenticationException("User not found");
+                });
+
+        // Check if user is active
+        if (!user.isActive()) {
+            throw new AuthenticationException("User account is not active");
+        }
+
+        // Check if email is verified
+        if (!user.isEmailVerified()) {
+            throw new AuthenticationException("Please verify your email before changing password");
+        }
+
+        // Verify current password
+        if (!encoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            // Record failed attempt (similar to login)
+            user.recordFailedLogin(maxLoginAttempts, accountLockDurationMinutes);
+            userRepository.save(user);
+
+            log.warn("Invalid current password for user: {}", email);
+            throw new AuthenticationException("Current password is incorrect");
+        }
+
+        // Check if new password is same as old password
+        if (encoder.matches(request.getNewPassword(), user.getPassword())) {
+            throw new ValidationException("New password cannot be same as current password");
+        }
+
+        // Check if password was recently changed (optional - security feature)
+        LocalDateTime passwordUpdatedAt = user.getPasswordUpdatedAt();
+        if (passwordUpdatedAt != null) {
+            LocalDateTime minAllowedTime = LocalDateTime.now().minusMinutes(30); // 30-minute cooldown
+            if (passwordUpdatedAt.isAfter(minAllowedTime)) {
+                throw new ValidationException("You can only change your password once every 30 minutes");
+            }
+        }
+
+        // Hash and save new password
+        String newPasswordHash = encoder.encode(request.getNewPassword());
+        user.setPassword(newPasswordHash);
+        user.setPasswordUpdatedAt(LocalDateTime.now());
+        user.setFailedLoginAttempts(0);
+        user.setAccountLockedUntil(null);
+
+        // Invalidate all refresh tokens for this user (force logout from all devices)
+        refreshTokenService.deleteByUserId(user.getId());
 
         userRepository.save(user);
 
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
-
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        String jwt = jwtUtil.generateJwtToken(authentication);
-
-        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
-        RefreshToken refreshToken = refreshTokenService.createRefreshToken(userPrincipal.getId());
-
-        return new AuthResponse(jwt, refreshToken.getToken(), userPrincipal.getId(), userPrincipal.getEmail());
+        log.info("Password changed successfully for user: {}", email);
     }
 
-    @Override
-    public AuthResponse login(LoginRequest request) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
+    private void validateChangePasswordRequest(ChangePasswordRequest request) {
+        if (request.getCurrentPassword() == null || request.getCurrentPassword().trim().isEmpty()) {
+            throw new ValidationException("Current password is required");
+        }
 
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        String jwt = jwtUtil.generateJwtToken(authentication);
+        if (request.getCurrentPassword().length() > 40) {
+            throw new ValidationException("Current password is too long");
+        }
 
-        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
-        RefreshToken refreshToken = refreshTokenService.createRefreshToken(userPrincipal.getId());
+        // Validate new password
+        String newPassword = request.getNewPassword();
+        if (newPassword == null || newPassword.trim().isEmpty()) {
+            throw new ValidationException("New password is required");
+        }
 
-        return new AuthResponse(jwt, refreshToken.getToken(), userPrincipal.getId(), userPrincipal.getEmail());
+        if (newPassword.length() < 6) {
+            throw new ValidationException("New password must be at least 6 characters");
+        }
+
+        if (newPassword.length() > 40) {
+            throw new ValidationException("New password must not exceed 40 characters");
+        }
+
+        // Password strength requirements
+        if (!newPassword.matches(".*[A-Z].*")) {
+            throw new ValidationException("Password must contain at least one uppercase letter");
+        }
+
+        if (!newPassword.matches(".*[a-z].*")) {
+            throw new ValidationException("Password must contain at least one lowercase letter");
+        }
+
+        if (!newPassword.matches(".*[0-9].*")) {
+            throw new ValidationException("Password must contain at least one number");
+        }
+
+        // Optional: Check for common passwords (you can expand this list)
+        Set<String> commonPasswords = Set.of(
+                "password123", "12345678", "qwerty123", "admin123", "welcome123"
+        );
+        if (commonPasswords.contains(newPassword.toLowerCase())) {
+            throw new ValidationException("Password is too common. Please choose a stronger password");
+        }
+
+        // Confirm password match
+        if (!newPassword.equals(request.getConfirmPassword())) {
+            throw new ValidationException("New password and confirm password do not match");
+        }
+
+        // Check if current and new password are the same
+        if (request.getCurrentPassword().equals(request.getNewPassword())) {
+            throw new ValidationException("New password cannot be same as current password");
+        }
     }
 
-    @Override
-    public TokenRefreshResponse refreshToken(RefreshTokenRequest request) {
-        String requestRefreshToken = request.getRefreshToken();
+    private User createUserFromPendingRegistration(EmailVerificationService.PendingRegistration pending) {
+        User user = new User();
+        user.setFullName(pending.getFullName());
+        user.setEmail(pending.getEmail());
+        user.setPassword(pending.getPasswordHash());
+        user.setPasswordUpdatedAt(LocalDateTime.now());
 
-        return refreshTokenService.findByToken(requestRefreshToken)
-                .map(refreshTokenService::verifyExpiration)
-                .map(RefreshToken::getUser)
-                .map(user -> {
-                    String token = jwtUtil.generateTokenFromUsername(user.getEmail());
-                    return new TokenRefreshResponse(token, requestRefreshToken);
-                })
-                .orElseThrow(() -> new TokenRefreshException(requestRefreshToken,
-                        "Refresh token is not in database!"));
+        // Parse roles from JSON
+        Set<RoleEnum> roles = parseRolesFromJson(pending.getRoles());
+        user.setRoleEnums(roles);
+
+        user.setActive(true);
+        user.setEmailVerified(true);
+        user.setEmailVerifiedAt(LocalDateTime.now());
+
+        return user;
     }
 
-    @Override
-    public void logout(String token) {
-        tokenBlacklistService.blacklistToken(token);
-        UserPrincipal userPrincipal = (UserPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        refreshTokenService.deleteByUserId(userPrincipal.getId());
+    private String convertRolesToJson(Set<RoleEnum> roles) {
+        Set<RoleEnum> validRoles = validateAndGetRoles(roles);
+        // Simple comma-separated string for roles
+        return String.join(",", validRoles.stream().map(Enum::name).toArray(String[]::new));
     }
 
-    @Override
-    public void verifyEmail(String token) {
-        // Implement email verification logic
+    private Set<RoleEnum> parseRolesFromJson(String rolesJson) {
+        Set<RoleEnum> roles = new HashSet<>();
+        if (rolesJson != null && !rolesJson.isEmpty()) {
+            for (String roleName : rolesJson.split(",")) {
+                try {
+                    roles.add(RoleEnum.valueOf(roleName.trim()));
+                } catch (IllegalArgumentException e) {
+                    log.warn("Invalid role in pending registration: {}", roleName);
+                }
+            }
+        }
+        // Default to CANDIDATE if no roles
+        if (roles.isEmpty()) {
+            roles.add(RoleEnum.CANDIDATE);
+        }
+        return roles;
     }
 
-    @Override
-    public void invalidateUserTokens(User user) {
-        refreshTokenService.deleteByUserId(user.getId());
+    private HttpServletRequest getCurrentHttpRequest() {
+        ServletRequestAttributes attributes = (ServletRequestAttributes)
+                RequestContextHolder.getRequestAttributes();
+        if (attributes != null) {
+            return attributes.getRequest();
+        }
+        throw new IllegalStateException("No HTTP request available");
+    }
+
+    private void validateRegistrationInput(SignupRequest signUpRequest) {
+        // Full name validation - at least 2 words
+        String fullName = signUpRequest.getFullName();
+        if (fullName == null || fullName.trim().isEmpty()) {
+            throw new ValidationException("Full name is required");
+        }
+
+        fullName = fullName.trim();
+
+        // Check for minimum 2 characters
+        if (fullName.length() < 2) {
+            throw new ValidationException("Full name must be at least 2 characters");
+        }
+
+        // Check for maximum 100 characters
+        if (fullName.length() > 100) {
+            throw new ValidationException("Full name must not exceed 100 characters");
+        }
+
+        // Check for at least 2 words (separated by space)
+        String[] nameParts = fullName.split("\\s+");
+        if (nameParts.length < 2) {
+            throw new ValidationException("Full name must contain at least 2 words (e.g., 'John Smith')");
+        }
+
+        // Check each name part for minimum length
+        for (String part : nameParts) {
+            if (part.length() < 1) {
+                throw new ValidationException("Each name part must have at least 1 character");
+            }
+        }
+
+        // Email validation
+        if (signUpRequest.getEmail() == null || !EMAIL_PATTERN.matcher(signUpRequest.getEmail()).matches()) {
+            throw new ValidationException("Valid email required");
+        }
+
+        if (signUpRequest.getEmail().length() > 50) {
+            throw new ValidationException("Email must not exceed 50 characters");
+        }
+
+        // Password validation
+        if (signUpRequest.getPassword() == null || signUpRequest.getPassword().length() < 6) {
+            throw new ValidationException("Password must be at least 6 characters");
+        }
+
+        if (signUpRequest.getPassword().length() > 40) {
+            throw new ValidationException("Password must not exceed 40 characters");
+        }
+
+        String password = signUpRequest.getPassword();
+        if (!password.matches(".*[A-Z].*") || !password.matches(".*[a-z].*") || !password.matches(".*[0-9].*")) {
+            throw new ValidationException("Password must contain uppercase, lowercase and number");
+        }
+    }
+
+
+    private void validateLoginInput(LoginRequest loginRequest) {
+        if (loginRequest.getEmail() == null || loginRequest.getEmail().trim().isEmpty()) {
+            throw new ValidationException("Email is required");
+        }
+
+        if (loginRequest.getPassword() == null || loginRequest.getPassword().trim().isEmpty()) {
+            throw new ValidationException("Password is required");
+        }
+
+        if (!EMAIL_PATTERN.matcher(loginRequest.getEmail().toLowerCase().trim()).matches()) {
+            throw new ValidationException("Invalid email format");
+        }
+    }
+
+    private Set<RoleEnum> validateAndGetRoles(Set<RoleEnum> requestedRoles) {
+        if (requestedRoles == null || requestedRoles.isEmpty()) {
+            Set<RoleEnum> defaultRoles = new HashSet<>();
+            defaultRoles.add(RoleEnum.CANDIDATE);
+            return defaultRoles;
+        }
+        return requestedRoles;
     }
 }
