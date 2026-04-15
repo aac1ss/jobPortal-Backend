@@ -37,4 +37,8 @@ public interface CandidateProfileRepository extends JpaRepository<CandidateProfi
 
     @Query("SELECT cp FROM CandidateProfile cp WHERE cp.user.isActive = true AND cp.isProfileComplete = true")
     Page<CandidateProfile> findAllActiveCompleteProfiles(Pageable pageable);
+
+
+    Long countByIsActivelyLookingTrue();
 }
+

@@ -42,4 +42,8 @@ public interface CompanyProfileRepository extends JpaRepository<CompanyProfile, 
 
     // For public - already exists
     Page<CompanyProfile> findByIsActiveAndIsVerified(boolean isActive, boolean isVerified, Pageable pageable);
+
+    Long countByIsVerifiedTrue();
+    Long countByIsVerifiedFalseAndIsActiveTrue();
+    Long countByIsVerifiedFalseAndIsActiveFalse();
 }

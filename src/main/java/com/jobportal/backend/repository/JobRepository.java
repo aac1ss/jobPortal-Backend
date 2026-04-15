@@ -104,5 +104,7 @@ public interface JobRepository extends JpaRepository<Job, Long> {
     boolean existsByCandidateIdAndJobId(@Param("candidateId") Long candidateId,
                                         @Param("jobId") Long jobId);
 
+
+    Long countByIsActiveTrue();
 }
 

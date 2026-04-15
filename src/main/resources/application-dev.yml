@@ -5,6 +5,17 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:postgres}
     driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
+    hikari:
+      maximum-pool-size: ${HIKARI_MAXIMUM_POOL_SIZE:10}
+      minimum-idle: ${HIKARI_MINIMUM_IDLE:5}
+      idle-timeout: 300000
+      connection-timeout: 30000
+      max-lifetime: 600000
+      pool-name: JobPortalHikariPool
+      leak-detection-threshold: 60000
+      validation-timeout: 5000
+      connection-test-query: SELECT 1
+      auto-commit: false
   jpa:
     hibernate:
       ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}

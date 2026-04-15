@@ -131,4 +131,7 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication, 
             "AND j.candidate.id = :candidateId")
     boolean existsByRecruiterIdAndCandidateId(@Param("recruiterId") Long recruiterId,
                                               @Param("candidateId") Long candidateId);
+
+
+    Long countByAppliedAtAfter(LocalDateTime dateTime);
 }
