@@ -1,6 +1,6 @@
 package com.jobportal.backend.entity;
 
-import com.jobportal.backend.enums.Role;
+import com.jobportal.backend.enums.RoleEnum;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
@@ -20,8 +20,8 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(unique = true, nullable = false, length = 50)
-    private String username;
+    @Column(name = "full_name", nullable = false, length = 100)
+    private String fullName;
 
     @Column(unique = true, nullable = false, length = 100)
     private String email;
@@ -29,11 +29,11 @@ public class User {
     @Column(nullable = false, length = 100)
     private String password;
 
-    @ElementCollection(targetClass = Role.class, fetch = FetchType.EAGER)
+    @ElementCollection(targetClass = RoleEnum.class, fetch = FetchType.EAGER)
     @CollectionTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"))
     @Column(name = "role", nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
-    private Set<Role> roles = new HashSet<>();
+    private Set<RoleEnum> roleEnums = new HashSet<>();
 
     @Column(name = "is_active")
     private boolean isActive = true;
@@ -64,11 +64,35 @@ public class User {
     @Column(name = "account_locked_until")
     private LocalDateTime accountLockedUntil;
 
+    @Column(name = "email_verified")
+    private boolean emailVerified = false;
+
+    @Column(name = "email_verified_at")
+    private LocalDateTime emailVerifiedAt;
 
     @Version
     private Long version;
 
-    // Business methods
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private CandidateProfile candidateProfile;
+
+    @OneToOne(mappedBy = "recruiter", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private CompanyProfile companyProfile;
+
+    public boolean hasCompanyProfile() {
+        return this.companyProfile != null;
+    }
+
+    public boolean hasCompleteCompanyProfile() {
+        return this.companyProfile != null && this.companyProfile.isProfileComplete();
+    }
+
+    public void verifyEmail() {
+        this.emailVerified = true;
+        this.emailVerifiedAt = LocalDateTime.now();
+        this.isActive = true;
+    }
+
     public void recordLogin() {
         this.lastLoginTime = LocalDateTime.now();
         this.loginCount = (this.loginCount == null) ? 1 : this.loginCount + 1;
@@ -79,7 +103,6 @@ public class User {
     public void recordFailedLogin(int maxLoginAttempts, int lockDurationMinutes) {
         this.failedLoginAttempts = (this.failedLoginAttempts == null) ? 1 : this.failedLoginAttempts + 1;
 
-        // Lock account after max attempts
         if (this.failedLoginAttempts >= maxLoginAttempts) {
             this.accountLockedUntil = LocalDateTime.now().plusMinutes(lockDurationMinutes);
         }
@@ -92,5 +115,9 @@ public class User {
     public void unlockAccount() {
         this.failedLoginAttempts = 0;
         this.accountLockedUntil = null;
+    }
+
+    public boolean hasRole(RoleEnum role) {
+        return roleEnums != null && roleEnums.contains(role);
     }
 }

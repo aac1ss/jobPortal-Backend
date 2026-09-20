@@ -69,21 +69,11 @@ public class PasswordResetServiceImpl implements PasswordResetService {
                     return new RuntimeException("If the email exists, a reset OTP has been sent");
                 });
 
-        // Check if user already has an active token
-        Optional<PasswordResetToken> existingToken = tokenRepository.findByUser(user);
-        if (existingToken.isPresent()) {
-            PasswordResetToken token = existingToken.get();
+        // FIRST, delete any existing tokens for this user
+        tokenRepository.deleteByUser(user);
 
-            // If token is not used and not expired, resend the same OTP
-            if (!token.isUsed() && token.getExpiryDate().isAfter(LocalDateTime.now())) {
-                emailService.sendPasswordResetEmail(user, token.getToken());
-                logger.info("Resent existing password reset OTP for user: {}", user.getEmail());
-                return;
-            } else {
-                // Remove expired or used token
-                tokenRepository.delete(token);
-            }
-        }
+        // Flush immediately to ensure the delete is committed
+        tokenRepository.flush();
 
         // Generate 6-digit OTP
         String otp = generateOTP();
@@ -165,7 +155,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         // Update user password
         user.setPassword(passwordEncoder.encode(newPassword));
         user.setPasswordUpdatedAt(LocalDateTime.now());
-        user.unlockAccount(); // Unlock account if it was locked
+        user.unlockAccount();
         userRepository.save(user);
 
         resetToken.setUsed(true);

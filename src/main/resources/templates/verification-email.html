@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Your Email - JobPortal</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; margin: 0; padding: 20px; }
+        .email-container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; text-align: center; color: white; }
+        .logo { font-size: 32px; font-weight: bold; margin-bottom: 10px; }
+        .content { padding: 40px; }
+        .otp-container { background: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 8px; padding: 25px; text-align: center; margin: 30px 0; }
+        .otp-code { font-size: 42px; font-weight: bold; letter-spacing: 10px; color: #495057; background: white; padding: 20px; border-radius: 5px; display: inline-block; margin: 15px 0; font-family: 'Courier New', monospace; }
+        .footer { background: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #6c757d; }
+        .timer { color: #dc3545; font-size: 14px; margin-top: 10px; }
+        .security-note { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px; }
+    </style>
+</head>
+<body>
+<div class="email-container">
+    <div class="header">
+        <div class="logo">JobPortal</div>
+        <h1>Verify Your Email Address</h1>
+    </div>
+
+    <div class="content">
+        <p>Hello <strong th:text="${name}">User</strong>,</p>
+        <p>Thank you for signing up with JobPortal! To complete your registration and activate your account, please use the verification code below:</p>
+
+        <div class="otp-container">
+            <p style="margin-bottom: 15px; color: #666;">Your verification code:</p>
+            <div class="otp-code" th:text="${otp}">123456</div>
+            <p class="timer">⏰ This code expires in <strong>15 minutes</strong></p>
+        </div>
+
+        <div class="security-note">
+            <h3 style="color: #856404; margin-bottom: 10px;">🔒 Security Information:</h3>
+            <ul style="color: #856404; padding-left: 20px;">
+                <li>This code is valid for one-time use only</li>
+                <li>Never share this code with anyone</li>
+                <li>JobPortal staff will never ask for your verification code</li>
+                <li>If you didn't create an account, please ignore this email</li>
+            </ul>
+        </div>
+
+        <p style="color: #666; margin-top: 25px;">
+            If you're having trouble with the code, you can:<br>
+            1. Request a new code after 2 minutes<br>
+            2. Contact our support team for assistance
+        </p>
+    </div>
+
+    <div class="footer">
+        <p>This is an automated message. Please do not reply to this email.</p>
+        <p>Need help? Contact <a href="mailto:support@jobportal.com" style="color: #667eea;">support@jobportal.com</a></p>
+        <p>&copy; 2024 JobPortal. All rights reserved.</p>
+    </div>
+</div>
+</body>
+</html>

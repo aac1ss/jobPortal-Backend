@@ -21,8 +21,8 @@ public class UserPrincipal implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return user.getRoles().stream()
-                .map(role -> new SimpleGrantedAuthority(role.name()))
+        return user.getRoleEnums().stream()
+                .map(role -> new SimpleGrantedAuthority("ROLE_" + role.name()))
                 .collect(Collectors.toList());
     }
 
@@ -33,7 +33,11 @@ public class UserPrincipal implements UserDetails {
 
     @Override
     public String getUsername() {
-        return user.getUsername();
+        return user.getEmail();
+    }
+
+    public String getFullName() {
+        return user.getFullName(); // Add this getter for full name access
     }
 
     public String getEmail() {
@@ -51,7 +55,7 @@ public class UserPrincipal implements UserDetails {
 
     @Override
     public boolean isAccountNonLocked() {
-        return user.isActive();
+        return user.isActive() && !user.isAccountLocked();
     }
 
     @Override

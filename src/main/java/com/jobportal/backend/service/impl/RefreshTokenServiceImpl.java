@@ -73,4 +73,11 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         refreshTokenRepository.deleteByUserId(userId);
         logger.info("Deleted refresh token for user ID: {}", userId);
     }
+
+    @Override
+    @Transactional
+    public void deleteByToken(String token) {
+        refreshTokenRepository.deleteByToken(token);
+        logger.info("Deleted refresh token: {}", token);
+    }
 }

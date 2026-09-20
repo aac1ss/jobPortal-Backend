@@ -1,7 +1,7 @@
 package com.jobportal.backend.dto.security.request;
 
 
-import com.jobportal.backend.enums.Role;
+import com.jobportal.backend.enums.RoleEnum;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -13,19 +13,19 @@ import java.util.Set;
 
 @Data
 public class SignupRequest {
-    @NotBlank
-    @Size(min = 3, max = 20)
-    private String username;
+    @NotBlank(message = "Full name is required")
+    @Size(min = 2, max = 100, message = "Full name must be between 2 and 100 characters")
+    private String fullName;
 
-    @NotBlank
-    @Size(max = 50)
-    @Email
+    @NotBlank(message = "Email is required")
+    @Email(message = "Please provide a valid email address")
+    @Size(max = 50, message = "Email must not exceed 50 characters")
     private String email;
 
-    @NotBlank
-    @Size(min = 6, max = 40)
+    @NotBlank(message = "Password is required")
+    @Size(min = 6, max = 40, message = "Password must be between 6 and 40 characters")
     private String password;
 
     @NotNull
-    private Set<Role> roles;
+    private Set<RoleEnum> roleEnums;
 }

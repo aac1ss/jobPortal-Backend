@@ -6,7 +6,8 @@ import lombok.Data;
 
 @Data
 public class ResetPasswordRequest {
-    @NotBlank
+
+    @NotBlank(message = "OTP is required")
     private String token;
 
     @NotBlank

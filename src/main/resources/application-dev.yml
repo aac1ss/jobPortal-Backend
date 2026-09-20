@@ -1,24 +1,30 @@
+# Development-specific configuration
 spring:
   datasource:
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/jobportal}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
     driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
+    hikari:
+      maximum-pool-size: ${HIKARI_MAXIMUM_POOL_SIZE:3}
+      minimum-idle: ${HIKARI_MINIMUM_IDLE:1}
+      idle-timeout: 300000
+      connection-timeout: 30000
+      max-lifetime: 600000
+      pool-name: JobPortalHikariPool
+      leak-detection-threshold: 60000
+      validation-timeout: 5000
+      connection-test-query: SELECT 1
+      auto-commit: false
   jpa:
     hibernate:
       ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
     database-platform: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.PostgreSQLDialect}
-
-server:
-  port: ${PORT:8080}
-
-#    show-sql: true
-
   mail:
-    host: ${SPRING_MAIL_HOST}
-    port: ${SPRING_MAIL_PORT}
-    username: ${SPRING_MAIL_USERNAME}
-    password: ${SPRING_MAIL_PASSWORD}
+    host: ${SPRING_MAIL_HOST:smtp.gmail.com}
+    port: ${SPRING_MAIL_PORT:587}
+    username: ${SPRING_MAIL_USERNAME:tryaac1ss@gmail.com}
+    password: ${SPRING_MAIL_PASSWORD:}
     protocol: smtp
     properties:
       mail:
@@ -29,9 +35,25 @@ server:
           connectiontimeout: 5000
           timeout: 5000
           writetimeout: 5000
-        debug: true  # Set to false in production
+#        debug: true
 
-logging:
-  level:
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type: TRACE
+# Swagger Configuration
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operations-sorter: method
+    tags-sorter: alpha
+    display-request-duration: true
+    filter: true
+  packages-to-scan: com.jobportal.backend.controller
+  paths-to-match: /api/**
+
+#
+#logging:
+#  level:
+#    org.hibernate.SQL: DEBUG
+#    org.hibernate.type: TRACE

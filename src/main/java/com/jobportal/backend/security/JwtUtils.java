@@ -2,6 +2,7 @@ package com.jobportal.backend.security;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,9 +12,11 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @Component
+@Slf4j
 public class JwtUtils {
     private static final Logger logger = LoggerFactory.getLogger(JwtUtils.class);
 
@@ -27,7 +30,6 @@ public class JwtUtils {
     private long jwtRefreshExpirationMs;
 
     private SecretKey getSigningKey() {
-        // Validate secret length
         if (jwtSecret == null || jwtSecret.length() < 32) {
             throw new IllegalStateException("JWT secret must be at least 256 bits (32 characters)");
         }
@@ -37,15 +39,18 @@ public class JwtUtils {
     public String generateJwtToken(Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
 
+        // Extract role names
+        List<String> roles = userPrincipal.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .collect(Collectors.toList());
+        log.debug("Roles in JWT: {}", roles);
         return Jwts.builder()
                 .setSubject(userPrincipal.getEmail())
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
                 .claim("userId", userPrincipal.getId())
                 .claim("username", userPrincipal.getUsername())
-                .claim("roles", userPrincipal.getAuthorities().stream()
-                        .map(GrantedAuthority::getAuthority)
-                        .collect(Collectors.toList()))
+                .claim("roles", roles)
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
@@ -55,18 +60,6 @@ public class JwtUtils {
                 .setSubject(email)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
-                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
-                .compact();
-    }
-
-    public String generateRefreshToken(Authentication authentication) {
-        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
-
-        return Jwts.builder()
-                .setSubject(userPrincipal.getEmail())
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + jwtRefreshExpirationMs))
-                .claim("type", "refresh")
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
@@ -87,6 +80,16 @@ public class JwtUtils {
                 .parseClaimsJws(token)
                 .getBody()
                 .get("userId", Long.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<String> getRolesFromToken(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .get("roles", List.class);
     }
 
     public boolean validateJwtToken(String authToken) {
@@ -110,14 +113,5 @@ public class JwtUtils {
             logger.error("JWT validation error: {}", e.getMessage());
         }
         return false;
-    }
-
-    public Date getExpirationDateFromToken(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(getSigningKey())
-                .build()
-                .parseClaimsJws(token)
-                .getBody()
-                .getExpiration();
     }
 }

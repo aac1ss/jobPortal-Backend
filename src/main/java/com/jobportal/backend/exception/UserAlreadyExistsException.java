@@ -1,7 +1,9 @@
 package com.jobportal.backend.exception;
 
-public class UserAlreadyExistsException extends RuntimeException {
+import org.springframework.http.HttpStatus;
+
+public class UserAlreadyExistsException extends BaseException {
     public UserAlreadyExistsException(String message) {
-        super(message);
+        super(message, HttpStatus.CONFLICT);
     }
 }

@@ -1,3 +1,4 @@
+# Default configuration
 spring:
   profiles:
     active: dev
@@ -10,45 +11,43 @@ spring:
             enable: true
         from: tryaac1ss@gmail.com
         personal: JobPortal Security
-
   flyway:
     enabled: true
     locations: classpath:db/migration
 
 server:
   port: 8080
-  context-path: /
+  servlet:
+    context-path: /
+
 error:
   include-stacktrace: never
   include-message: always
   include-binding-errors: never
 
-
 jwt:
-  secret: 5ZoPtw1tCYBcri4AvOTvu8OcCgWo7iKU/HsJzMesr9M= # Use environment variable
-  # secret: ${JWT_SECRET:}
-  expiration: 900000 # 15 minutes
+  secret: 5ZoPtw1tCYBcri4AvOTvu8OcCgWo7iKU/HsJzMesr9M=
+#  expiration: 900000 #15 minutes
+  expiration: 86400000 #1 day
   refresh:
-    expiration: 2592000000 # 30 days
+    expiration: 2592000000
 
 app:
   security:
-    max-login-attempts: 5 # ✅ NOW USED
-    account-lock-duration-minutes: 30 # ✅ NOW USED
+    max-login-attempts: 5
+    account-lock-duration-minutes: 30
     password-reset:
-      token-expiration-ms: 3600000
+      token-expiration-ms: 300000 #in milliseconds
       otp-length: 6
       max-attempts: 3
+    email-verification:
+      otp-length: 6
+      otp-expiration-minutes: 5
+      max-attempts: 3
+      resend-cooldown-seconds: 120
+      max-daily-attempts: 10
+      cleanup-age-days: 7
 
-springdoc:
-  api-docs:
-    path: /v3/api-docs
-  swagger-ui:
-    path: /swagger-ui.html
-    enabled: true
-  packages-to-scan: com.jobportal.backend.controller
-
-# Actuator Configuration
 management:
   endpoints:
     web:
@@ -66,6 +65,9 @@ management:
 
 logging:
   level:
-    org.springframework.web: INFO
-    com.jobportal.backend: INFO
-
+#    org.springframework.web: INFO
+#    com.jobportal.backend: INFO
+    org.springframework.web: DEBUG
+    org.springdoc: DEBUG
+    org.springframework.security: DEBUG
+    com.jobportal.backend: DEBUG

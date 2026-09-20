@@ -1,7 +1,9 @@
 package com.jobportal.backend.exception;
 
-public class ValidationException extends RuntimeException {
+import org.springframework.http.HttpStatus;
+
+public class ValidationException extends BaseException {
     public ValidationException(String message) {
-        super(message);
+        super(message, HttpStatus.NOT_FOUND);
     }
 }

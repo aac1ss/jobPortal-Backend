@@ -1,19 +1,26 @@
 package com.jobportal.backend.service.impl;
 
+import com.jobportal.backend.dto.security.request.ChangePasswordRequest;
 import com.jobportal.backend.dto.security.request.LoginRequest;
 import com.jobportal.backend.dto.security.request.SignupRequest;
+import com.jobportal.backend.dto.security.request.VerifySignupRequest;
 import com.jobportal.backend.dto.security.response.LoginResponse;
 import com.jobportal.backend.entity.RefreshToken;
 import com.jobportal.backend.entity.User;
-import com.jobportal.backend.enums.Role;
-import com.jobportal.backend.exception.*;
+import com.jobportal.backend.enums.RoleEnum;
+import com.jobportal.backend.exception.AccountLockedException;
+import com.jobportal.backend.exception.AuthenticationException;
+import com.jobportal.backend.exception.UserAlreadyExistsException;
+import com.jobportal.backend.exception.ValidationException;
 import com.jobportal.backend.repository.UserRepository;
 import com.jobportal.backend.security.JwtUtils;
 import com.jobportal.backend.security.UserPrincipal;
 import com.jobportal.backend.service.AuthService;
+import com.jobportal.backend.service.EmailVerificationService;
 import com.jobportal.backend.service.RefreshTokenService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -23,73 +30,84 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
-    private static final Logger logger = LoggerFactory.getLogger(AuthServiceImpl.class);
+
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@(.+)$");
+
+    @Value("${jwt.expiration:900000}")
+    private long jwtExpirationMs;
+
     @Value("${app.security.max-login-attempts:5}")
     private int maxLoginAttempts;
 
     @Value("${app.security.account-lock-duration-minutes:30}")
     private int accountLockDurationMinutes;
 
-
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
     private final PasswordEncoder encoder;
     private final JwtUtils jwtUtils;
     private final RefreshTokenService refreshTokenService;
+    private final EmailVerificationService emailVerificationService;
 
-    public AuthServiceImpl(AuthenticationManager authenticationManager, UserRepository userRepository,
-                           PasswordEncoder encoder, JwtUtils jwtUtils, RefreshTokenService refreshTokenService) {
-        this.authenticationManager = authenticationManager;
-        this.userRepository = userRepository;
-        this.encoder = encoder;
-        this.jwtUtils = jwtUtils;
-        this.refreshTokenService = refreshTokenService;
+    @Override
+    @Transactional
+    public LoginResponse authenticateCandidate(LoginRequest loginRequest) {
+        return authenticateUserWithRole(loginRequest, RoleEnum.CANDIDATE);
     }
 
     @Override
     @Transactional
-    public LoginResponse authenticateUser(LoginRequest loginRequest) {
+    public LoginResponse authenticateRecruiter(LoginRequest loginRequest) {
+        return authenticateUserWithRole(loginRequest, RoleEnum.RECRUITER);
+    }
+
+    @Override
+    @Transactional
+    public LoginResponse authenticateAdmin(LoginRequest loginRequest) {
+        return authenticateUserWithRole(loginRequest, RoleEnum.ADMIN);
+    }
+
+    private LoginResponse authenticateUserWithRole(LoginRequest loginRequest, RoleEnum requiredRole) {
         String email = loginRequest.getEmail().toLowerCase().trim();
 
-        logger.info("Authentication attempt for email: {}", email);
+        validateLoginInput(loginRequest);
 
-        // Basic validation
-        if (loginRequest.getEmail() == null || loginRequest.getEmail().trim().isEmpty()) {
-            throw new ValidationException("Email is required");
-        }
-
-        if (loginRequest.getPassword() == null || loginRequest.getPassword().trim().isEmpty()) {
-            throw new ValidationException("Password is required");
-        }
-
-        if (!EMAIL_PATTERN.matcher(email).matches()) {
-            throw new ValidationException("Invalid email format");
-        }
-
-        // Check if user exists
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
-                    logger.warn("Authentication failed: User not found - {}", email);
-                    return new AuthenticationException("Invalid email or password");
+                    log.warn("User not found: {}", email);
+                    return new AuthenticationException("Invalid credentials");
                 });
+        if (!user.isEmailVerified()) {
+            log.warn("Login attempt with unverified email: {}", email);
+            throw new AuthenticationException("Please verify your email before logging in");
+        }
 
-        // Check account lock status
         if (user.isAccountLocked()) {
-            logger.warn("Authentication failed: Account locked - {}", email);
-            throw new AccountLockedException("Account is temporarily locked due to multiple failed attempts. Please try again in 30 minutes.");
+            log.warn("Account locked: {}", email);
+            throw new AccountLockedException("Account is temporarily locked");
+        }
+
+        if (!user.hasRole(requiredRole)) {
+            log.warn("Role mismatch: {} expected {}, user has {}",
+                    email, requiredRole, user.getRoleEnums());
+            user.recordFailedLogin(maxLoginAttempts, accountLockDurationMinutes);
+            userRepository.save(user);
+            throw new AuthenticationException("Invalid credentials");
         }
 
         try {
-            // Authenticate user
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(email, loginRequest.getPassword()));
 
@@ -98,132 +116,343 @@ public class AuthServiceImpl implements AuthService {
             UserPrincipal userDetails = (UserPrincipal) authentication.getPrincipal();
             String jwt = jwtUtils.generateJwtToken(authentication);
 
-            // Update user login information
             user.recordLogin();
             userRepository.save(user);
 
-            // Create refresh token
             RefreshToken refreshToken = refreshTokenService.createRefreshToken(userDetails.getId());
 
-            logger.info("User {} successfully authenticated", userDetails.getUsername());
+            log.info("{} logged in: {}", requiredRole, userDetails.getUsername());
 
             return new LoginResponse(
                     jwt,
                     refreshToken.getToken(),
-                    userDetails.getId(),
-                    userDetails.getUsername(),
-                    userDetails.getEmail(),
-                    userDetails.getAuthorities()
+                    jwtExpirationMs / 1000
             );
 
         } catch (BadCredentialsException e) {
-            // Record failed attempt
             user.recordFailedLogin(maxLoginAttempts, accountLockDurationMinutes);
             userRepository.save(user);
 
-            logger.warn("Invalid credentials for email: {}", email);
-            throw new AuthenticationException("Invalid email or password");
+            log.warn("Invalid credentials: {}", email);
+            throw new AuthenticationException("Invalid credentials");
         } catch (Exception e) {
-            logger.error("Authentication failed for email: {}", email, e);
-            throw new AuthenticationException("Authentication failed. Please try again.");
+            log.error("Authentication failed: {}", email, e);
+            throw new AuthenticationException("Authentication failed");
         }
     }
 
     @Override
     @Transactional
     public void registerUser(SignupRequest signUpRequest) {
-        logger.info("Starting user registration for email: {}", signUpRequest.getEmail());
-
-        // Validate input
         validateRegistrationInput(signUpRequest);
 
         String email = signUpRequest.getEmail().toLowerCase().trim();
-        String username = signUpRequest.getUsername().trim();
+        String fullName = signUpRequest.getFullName().trim();
 
-        // Check if username exists
-        if (userRepository.existsByUsername(username)) {
-            logger.warn("Registration failed: Username already taken - {}", username);
-            throw new UserAlreadyExistsException("Username is already taken!");
-        }
-
-        // Check if email exists
         if (userRepository.existsByEmail(email)) {
-            logger.warn("Registration failed: Email already in use - {}", email);
-            throw new UserAlreadyExistsException("Email is already in use!");
+            throw new UserAlreadyExistsException("Email already in use");
         }
 
-        try {
-            // Create new user
-            User user = new User();
-            user.setUsername(username);
-            user.setEmail(email);
-            user.setPassword(encoder.encode(signUpRequest.getPassword()));
-            user.setPasswordUpdatedAt(LocalDateTime.now());
+        // Hash password
+        String passwordHash = encoder.encode(signUpRequest.getPassword());
 
-            // Validate and set roles
-            Set<Role> validatedRoles = validateAndGetRoles(signUpRequest.getRoles());
-            user.setRoles(validatedRoles);
-            user.setActive(true);
+        // Convert roles to JSON string
+        String rolesJson = convertRolesToJson(signUpRequest.getRoleEnums());
 
-            // Save user
-            User savedUser = userRepository.save(user);
+        // Get HTTP request for IP tracking
+        HttpServletRequest request = getCurrentHttpRequest();
 
-            // Send welcome email (optional)
-            // emailService.sendWelcomeEmail(savedUser);
+        // Send verification OTP (does NOT save user yet)
+        emailVerificationService.sendVerificationOtp(email, fullName, passwordHash, rolesJson, request);
 
-            logger.info("User registered successfully: {} with roles: {}",
-                    savedUser.getUsername(), savedUser.getRoles());
-
-        } catch (Exception e) {
-            logger.error("Error during user registration for email: {}", email, e);
-            throw new RuntimeException("Registration failed: " + e.getMessage());
-        }
+        log.info("Signup initiated for user: {}. Verification OTP sent.", email);
     }
 
-    private void validateRegistrationInput(SignupRequest signUpRequest) {
-        if (signUpRequest.getUsername() == null || signUpRequest.getUsername().trim().length() < 3) {
-            throw new ValidationException("Username must be at least 3 characters long");
-        }
+    @Override
+    @Transactional
+    public User verifyAndCompleteSignup(VerifySignupRequest verifyRequest) {
+        HttpServletRequest request = getCurrentHttpRequest();
 
-        if (signUpRequest.getUsername().length() > 50) {
-            throw new ValidationException("Username must not exceed 50 characters");
-        }
+        EmailVerificationService.PendingRegistration pending =
+                emailVerificationService.verifyOtp(verifyRequest, request);
 
-        if (signUpRequest.getEmail() == null || !EMAIL_PATTERN.matcher(signUpRequest.getEmail()).matches()) {
-            throw new ValidationException("Valid email is required");
-        }
+        User user = createUserFromPendingRegistration(pending);
+        User savedUser = userRepository.save(user);
 
-        if (signUpRequest.getPassword() == null || signUpRequest.getPassword().length() < 8) {
-            throw new ValidationException("Password must be at least 8 characters long");
-        }
+        log.info("User registration completed: {} - {}", savedUser.getEmail(), savedUser.getFullName());
 
-        // Basic password strength
-        String password = signUpRequest.getPassword();
-        if (!password.matches(".*[A-Z].*") || !password.matches(".*[a-z].*") || !password.matches(".*[0-9].*")) {
-            throw new ValidationException("Password must contain at least one uppercase letter, one lowercase letter, and one number");
-        }
+        return savedUser;
     }
 
-    private Set<Role> validateAndGetRoles(Set<Role> requestedRoles) {
-        if (requestedRoles == null || requestedRoles.isEmpty()) {
-            throw new ValidationException("At least one role is required");
+    @Transactional
+    public void resendVerificationOtp(String email) {
+        // Get HTTP request for IP tracking
+        HttpServletRequest request = getCurrentHttpRequest();
+
+        emailVerificationService.resendVerificationOtp(email, request);
+
+        log.info("Verification OTP resent for: {}", email);
+    }
+
+    @Override
+    @Transactional
+    public void logout(String refreshToken) {
+        if (refreshToken == null || refreshToken.trim().isEmpty()) {
+            throw new ValidationException("Refresh token is required");
         }
 
-        Set<Role> validRoles = new HashSet<>();
-        for (Role role : requestedRoles) {
-            if (role != null && isValidRole(role)) {
-                validRoles.add(role);
+        // Delete the refresh token
+        refreshTokenService.deleteByToken(refreshToken);
+
+        log.info("User logged out successfully. Refresh token invalidated.");
+    }
+
+    @Override
+    @Transactional
+    public void changePassword(ChangePasswordRequest request, String authenticatedEmail) {
+        validateChangePasswordRequest(request);
+
+        String email = authenticatedEmail.toLowerCase().trim();
+
+        // Find user by email
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> {
+                    log.warn("User not found for password change: {}", email);
+                    return new AuthenticationException("User not found");
+                });
+
+        // Check if user is active
+        if (!user.isActive()) {
+            throw new AuthenticationException("User account is not active");
+        }
+
+        // Check if email is verified
+        if (!user.isEmailVerified()) {
+            throw new AuthenticationException("Please verify your email before changing password");
+        }
+
+        // Verify current password
+        if (!encoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            // Record failed attempt (similar to login)
+            user.recordFailedLogin(maxLoginAttempts, accountLockDurationMinutes);
+            userRepository.save(user);
+
+            log.warn("Invalid current password for user: {}", email);
+            throw new AuthenticationException("Current password is incorrect");
+        }
+
+        // Check if new password is same as old password
+        if (encoder.matches(request.getNewPassword(), user.getPassword())) {
+            throw new ValidationException("New password cannot be same as current password");
+        }
+
+        // Check if password was recently changed (optional - security feature)
+        LocalDateTime passwordUpdatedAt = user.getPasswordUpdatedAt();
+        if (passwordUpdatedAt != null) {
+            LocalDateTime minAllowedTime = LocalDateTime.now().minusMinutes(30); // 30-minute cooldown
+            if (passwordUpdatedAt.isAfter(minAllowedTime)) {
+                throw new ValidationException("You can only change your password once every 30 minutes");
             }
         }
 
-        if (validRoles.isEmpty()) {
-            throw new ValidationException("Invalid roles provided");
-        }
+        // Hash and save new password
+        String newPasswordHash = encoder.encode(request.getNewPassword());
+        user.setPassword(newPasswordHash);
+        user.setPasswordUpdatedAt(LocalDateTime.now());
+        user.setFailedLoginAttempts(0);
+        user.setAccountLockedUntil(null);
 
-        return validRoles;
+        // Invalidate all refresh tokens for this user (force logout from all devices)
+        refreshTokenService.deleteByUserId(user.getId());
+
+        userRepository.save(user);
+
+        log.info("Password changed successfully for user: {}", email);
     }
 
-    private boolean isValidRole(Role role) {
-        return role == Role.ADMIN || role == Role.RECRUITER || role == Role.CANDIDATE;
+    private void validateChangePasswordRequest(ChangePasswordRequest request) {
+        if (request.getCurrentPassword() == null || request.getCurrentPassword().trim().isEmpty()) {
+            throw new ValidationException("Current password is required");
+        }
+
+        if (request.getCurrentPassword().length() > 40) {
+            throw new ValidationException("Current password is too long");
+        }
+
+        // Validate new password
+        String newPassword = request.getNewPassword();
+        if (newPassword == null || newPassword.trim().isEmpty()) {
+            throw new ValidationException("New password is required");
+        }
+
+        if (newPassword.length() < 6) {
+            throw new ValidationException("New password must be at least 6 characters");
+        }
+
+        if (newPassword.length() > 40) {
+            throw new ValidationException("New password must not exceed 40 characters");
+        }
+
+        // Password strength requirements
+        if (!newPassword.matches(".*[A-Z].*")) {
+            throw new ValidationException("Password must contain at least one uppercase letter");
+        }
+
+        if (!newPassword.matches(".*[a-z].*")) {
+            throw new ValidationException("Password must contain at least one lowercase letter");
+        }
+
+        if (!newPassword.matches(".*[0-9].*")) {
+            throw new ValidationException("Password must contain at least one number");
+        }
+
+        // Optional: Check for common passwords (you can expand this list)
+        Set<String> commonPasswords = Set.of(
+                "password123", "12345678", "qwerty123", "admin123", "welcome123"
+        );
+        if (commonPasswords.contains(newPassword.toLowerCase())) {
+            throw new ValidationException("Password is too common. Please choose a stronger password");
+        }
+
+        // Confirm password match
+        if (!newPassword.equals(request.getConfirmPassword())) {
+            throw new ValidationException("New password and confirm password do not match");
+        }
+
+        // Check if current and new password are the same
+        if (request.getCurrentPassword().equals(request.getNewPassword())) {
+            throw new ValidationException("New password cannot be same as current password");
+        }
+    }
+
+    private User createUserFromPendingRegistration(EmailVerificationService.PendingRegistration pending) {
+        User user = new User();
+        user.setFullName(pending.getFullName());
+        user.setEmail(pending.getEmail());
+        user.setPassword(pending.getPasswordHash());
+        user.setPasswordUpdatedAt(LocalDateTime.now());
+
+        // Parse roles from JSON
+        Set<RoleEnum> roles = parseRolesFromJson(pending.getRoles());
+        user.setRoleEnums(roles);
+
+        user.setActive(true);
+        user.setEmailVerified(true);
+        user.setEmailVerifiedAt(LocalDateTime.now());
+
+        return user;
+    }
+
+    private String convertRolesToJson(Set<RoleEnum> roles) {
+        Set<RoleEnum> validRoles = validateAndGetRoles(roles);
+        // Simple comma-separated string for roles
+        return String.join(",", validRoles.stream().map(Enum::name).toArray(String[]::new));
+    }
+
+    private Set<RoleEnum> parseRolesFromJson(String rolesJson) {
+        Set<RoleEnum> roles = new HashSet<>();
+        if (rolesJson != null && !rolesJson.isEmpty()) {
+            for (String roleName : rolesJson.split(",")) {
+                try {
+                    roles.add(RoleEnum.valueOf(roleName.trim()));
+                } catch (IllegalArgumentException e) {
+                    log.warn("Invalid role in pending registration: {}", roleName);
+                }
+            }
+        }
+        // Default to CANDIDATE if no roles
+        if (roles.isEmpty()) {
+            roles.add(RoleEnum.CANDIDATE);
+        }
+        return roles;
+    }
+
+    private HttpServletRequest getCurrentHttpRequest() {
+        ServletRequestAttributes attributes = (ServletRequestAttributes)
+                RequestContextHolder.getRequestAttributes();
+        if (attributes != null) {
+            return attributes.getRequest();
+        }
+        throw new IllegalStateException("No HTTP request available");
+    }
+
+    private void validateRegistrationInput(SignupRequest signUpRequest) {
+        // Full name validation - at least 2 words
+        String fullName = signUpRequest.getFullName();
+        if (fullName == null || fullName.trim().isEmpty()) {
+            throw new ValidationException("Full name is required");
+        }
+
+        fullName = fullName.trim();
+
+        // Check for minimum 2 characters
+        if (fullName.length() < 2) {
+            throw new ValidationException("Full name must be at least 2 characters");
+        }
+
+        // Check for maximum 100 characters
+        if (fullName.length() > 100) {
+            throw new ValidationException("Full name must not exceed 100 characters");
+        }
+
+        // Check for at least 2 words (separated by space)
+        String[] nameParts = fullName.split("\\s+");
+        if (nameParts.length < 2) {
+            throw new ValidationException("Full name must contain at least 2 words (e.g., 'John Smith')");
+        }
+
+        // Check each name part for minimum length
+        for (String part : nameParts) {
+            if (part.length() < 1) {
+                throw new ValidationException("Each name part must have at least 1 character");
+            }
+        }
+
+        // Email validation
+        if (signUpRequest.getEmail() == null || !EMAIL_PATTERN.matcher(signUpRequest.getEmail()).matches()) {
+            throw new ValidationException("Valid email required");
+        }
+
+        if (signUpRequest.getEmail().length() > 50) {
+            throw new ValidationException("Email must not exceed 50 characters");
+        }
+
+        // Password validation
+        if (signUpRequest.getPassword() == null || signUpRequest.getPassword().length() < 6) {
+            throw new ValidationException("Password must be at least 6 characters");
+        }
+
+        if (signUpRequest.getPassword().length() > 40) {
+            throw new ValidationException("Password must not exceed 40 characters");
+        }
+
+        String password = signUpRequest.getPassword();
+        if (!password.matches(".*[A-Z].*") || !password.matches(".*[a-z].*") || !password.matches(".*[0-9].*")) {
+            throw new ValidationException("Password must contain uppercase, lowercase and number");
+        }
+    }
+
+
+    private void validateLoginInput(LoginRequest loginRequest) {
+        if (loginRequest.getEmail() == null || loginRequest.getEmail().trim().isEmpty()) {
+            throw new ValidationException("Email is required");
+        }
+
+        if (loginRequest.getPassword() == null || loginRequest.getPassword().trim().isEmpty()) {
+            throw new ValidationException("Password is required");
+        }
+
+        if (!EMAIL_PATTERN.matcher(loginRequest.getEmail().toLowerCase().trim()).matches()) {
+            throw new ValidationException("Invalid email format");
+        }
+    }
+
+    private Set<RoleEnum> validateAndGetRoles(Set<RoleEnum> requestedRoles) {
+        if (requestedRoles == null || requestedRoles.isEmpty()) {
+            Set<RoleEnum> defaultRoles = new HashSet<>();
+            defaultRoles.add(RoleEnum.CANDIDATE);
+            return defaultRoles;
+        }
+        return requestedRoles;
     }
 }

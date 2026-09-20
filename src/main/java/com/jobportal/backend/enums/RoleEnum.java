@@ -1,6 +1,6 @@
 package com.jobportal.backend.enums;
 
-public enum Role {
+public enum RoleEnum {
     ADMIN,
     RECRUITER,
     CANDIDATE
